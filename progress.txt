@@ -512,3 +512,16 @@ Thread: https://ampcode.com/threads/T-019bdf01-993e-7328-b929-163bc86492d6
   - Use `fromDatabase.property: connectionString` in render.yaml to reference internal DB URL
   - `sync: false` for secrets means they must be set manually in Render dashboard
 ---
+
+## 2026-01-21 - US-049
+Thread: https://ampcode.com/threads/T-019bdf02-b579-7582-bc42-ee7cb79b9363
+- Added "Render Cron Job Setup" section to README.md
+- Documented daily cron schedule: `0 12 * * *` (12:00 UTC = 4:00 AM PST)
+- Documented weekly cron schedule: `0 2 * * 6` (02:00 UTC Saturday = 6:00 PM PST Friday)
+- Included setup instructions for Render cron jobs UI
+- Added example curl commands for both daily and weekly digest endpoints
+- Added local testing instructions with expected responses
+- **Learnings for future iterations:**
+  - Documentation-only stories just update README, no code changes
+  - Include both production (render.com URL) and local testing examples
+---
