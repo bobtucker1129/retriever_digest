@@ -283,3 +283,17 @@ Thread: https://ampcode.com/threads/T-019bdeea-3371-74e2-bf81-4815cdb3321f
   - Follow exact same pattern as get_pm_open_invoices but use `salesrep` field instead of `takenby`
 
 ---
+
+## 2026-01-21 - US-021
+Thread: https://ampcode.com/threads/T-019bdeeb-598d-7592-8d23-1c93e8279679
+- Added `get_mtd_metrics()` function for month-to-date sales metrics
+- Queries completed invoices from first of month to today for revenue and sales_count
+- Queries estimates created this month for estimates_created count
+- Queries new customers (accounts with first-ever invoice this month) using NOT EXISTS subquery
+- Returns { revenue, sales_count, estimates_created, new_customers }
+- Updated main() to call and log MTD metrics
+- **Learnings for future iterations:**
+  - Use NOT EXISTS subquery to find accounts with no prior completed invoices (new customers)
+  - Use `today.replace(day=1)` to get first day of current month in Python
+
+---
