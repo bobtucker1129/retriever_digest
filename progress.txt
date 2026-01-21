@@ -60,3 +60,14 @@ Thread: https://ampcode.com/threads/T-019bdece-2f4a-742e-b442-122adee1ceb5
   - Follow same pattern as Goal migration: use `IF NOT EXISTS` for tables and indexes
 
 ---
+
+## 2026-01-21 - US-005
+Thread: https://ampcode.com/threads/T-019bdecf-329f-777e-8669-814c097a9078
+- Created DigestData model with fields: id, exportDate (DateTime unique), data (Json), createdAt
+- Created migration file in prisma/migrations/20260121000002_add_digest_data_model/
+- Used JSONB type for PostgreSQL JSON data storage
+- Regenerated Prisma client with DigestData model types
+- **Learnings for future iterations:**
+  - Use JSONB (not JSON) in PostgreSQL for better indexing/querying support
+
+---
