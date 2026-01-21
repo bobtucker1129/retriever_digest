@@ -202,3 +202,17 @@ Thread: https://ampcode.com/threads/T-019bdee2-80b0-70c8-b059-c66e932d6dac
   - Track deletingRecipient state separately from editingRecipient to avoid conflicts
 
 ---
+
+## 2026-01-21 - US-015
+Thread: https://ampcode.com/threads/T-019bdee4-19d0-771e-869c-9b48ecece2f6
+- Added toggleRecipientActive server action in actions.ts
+- Replaced static status badge with interactive toggle switch button
+- Toggle switch has visual track/thumb animation with green (active) and gray (inactive) states
+- Clicking toggle immediately updates database and local state without page reload
+- Added togglingId state to show loading/disabled state during toggle operation
+- Added CSS styles for toggle switch (.status-toggle, .toggle-track, .toggle-thumb, .toggle-label)
+- **Learnings for future iterations:**
+  - Toggle switches provide better UX than simple clickable badges for boolean states
+  - Track the ID of the item being toggled (togglingId) to disable only that specific toggle
+
+---
