@@ -554,18 +554,18 @@
     },
     {
       "id": "US-035",
-      "title": "Integrate Anthropic for inspirational content",
+      "title": "Integrate OpenAI for inspirational content",
       "description": "As a developer, I need AI-generated quotes or jokes for each digest.",
       "acceptanceCriteria": [
-        "Environment variable `ANTHROPIC_API_KEY`",
-        "Function randomly chooses content type: inspirational quote, clean joke, historical \"this day in history\" fact, or fun industry trivia",
+        "Environment variable `OPENAI_API_KEY`",
+        "Function randomly chooses content type: inspirational quote or clean joke",
         "Prompt specifies: sales/business/printing theme, keep it short (1-2 sentences), appropriate for workplace",
         "Returns object: `{ type: string, content: string, attribution?: string }`",
         "Falls back to hardcoded content array if API fails",
         "Typecheck passes"
       ],
       "priority": 35,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

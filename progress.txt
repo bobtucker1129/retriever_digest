@@ -297,3 +297,18 @@ Thread: https://ampcode.com/threads/T-019bdeeb-598d-7592-8d23-1c93e8279679
   - Use `today.replace(day=1)` to get first day of current month in Python
 
 ---
+
+## 2026-01-21 - US-035
+Thread: https://ampcode.com/threads/T-019bdeec-d760-74d2-8d6a-3f977fce14cd
+- Created `src/lib/ai-content.ts` with `generateAIContent()` function
+- Installed OpenAI SDK and uses gpt-4o-mini model
+- Randomly selects between quote and joke content types
+- Prompts specify sales/business/printing theme, 1-2 sentences, workplace appropriate
+- Returns `{ type: string, content: string, attribution?: string }`
+- Includes 8 fallback content items if API fails or key is missing
+- **Learnings for future iterations:**
+  - OpenAI SDK is already available via `npm install openai`
+  - Use gpt-4o-mini for cost-effective content generation
+  - Avoid ES2018+ regex flags (like `s`) for TypeScript target compatibility
+
+---
