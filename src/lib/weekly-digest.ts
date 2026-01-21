@@ -596,3 +596,72 @@ export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
   console.log(`[Weekly Digest] Complete - Sent: ${result.sent}, Failed: ${result.failed}`);
   return result;
 }
+
+const MOCK_WEEKLY_DATA: WeeklyDigestData = {
+  weekStartDate: new Date(),
+  weekEndDate: new Date(),
+  thisWeek: { revenue: 125000, salesCount: 45, estimatesCreated: 28, newCustomers: 7 },
+  lastWeek: { revenue: 112000, salesCount: 42, estimatesCreated: 25, newCustomers: 5 },
+  weekOverWeekChange: { revenueChange: 12, salesCountChange: 7, estimatesCreatedChange: 12, newCustomersChange: 40 },
+  pmWeeklyPerformance: [
+    { name: 'Jim', ordersCompleted: 18, revenue: 45000 },
+    { name: 'Steve', ordersCompleted: 15, revenue: 38000 },
+    { name: 'Shelley', ordersCompleted: 12, revenue: 28000 },
+  ],
+  bdWeeklyPerformance: [
+    { name: 'Paige Chamberlain', ordersCompleted: 12, revenue: 35000 },
+    { name: 'Sean Swaim', ordersCompleted: 10, revenue: 30000 },
+    { name: 'House', ordersCompleted: 8, revenue: 22000 },
+  ],
+  monthToDate: { revenue: 325000, salesCount: 120, estimatesCreated: 75, newCustomers: 18 },
+  yearToDate: { revenue: 1450000, salesCount: 520, estimatesCreated: 310, newCustomers: 85 },
+  topHighlights: [
+    'Biggest order this week: $12,500 from ABC Corp',
+    'New enterprise customer: XYZ Industries',
+    'Steve closed 5 orders on Monday alone!',
+  ],
+};
+
+export async function generateWeeklyDigestWithMockFallback(
+  recipientName: string
+): Promise<{ html: string; isMockData: boolean }> {
+  const weeklyData = await getWeeklyDigestData();
+  const hasNoData = !weeklyData || (weeklyData.thisWeek.revenue === 0 && weeklyData.lastWeek.revenue === 0);
+  const isMockData = hasNoData;
+  const dataToUse = isMockData ? MOCK_WEEKLY_DATA : weeklyData;
+
+  const goals = await prisma.goal.findMany();
+  const aiContent = await generateAIContent();
+
+  const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
+  const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
+
+  const defaultGoal = {
+    salesRevenue: 0,
+    salesCount: 0,
+    estimatesCreated: 0,
+    newCustomers: 0,
+  };
+
+  const monthly = monthlyGoal
+    ? {
+        salesRevenue: Number(monthlyGoal.salesRevenue),
+        salesCount: monthlyGoal.salesCount,
+        estimatesCreated: monthlyGoal.estimatesCreated,
+        newCustomers: monthlyGoal.newCustomers,
+      }
+    : defaultGoal;
+
+  const annual = annualGoal
+    ? {
+        salesRevenue: Number(annualGoal.salesRevenue),
+        salesCount: annualGoal.salesCount,
+        estimatesCreated: annualGoal.estimatesCreated,
+        newCustomers: annualGoal.newCustomers,
+      }
+    : defaultGoal;
+
+  const html = generateWeeklyDigestHTML(recipientName, dataToUse, monthly, annual, aiContent);
+
+  return { html, isMockData };
+}

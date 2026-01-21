@@ -2,18 +2,22 @@
 
 import { useState } from 'react';
 
+type PreviewType = 'daily' | 'weekly';
+
 export default function TestingPage() {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingDaily, setIsLoadingDaily] = useState(false);
+  const [isLoadingWeekly, setIsLoadingWeekly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMockData, setIsMockData] = useState(false);
+  const [activePreview, setActivePreview] = useState<PreviewType | null>(null);
 
   const [testEmail, setTestEmail] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handlePreviewDaily = async () => {
-    setIsLoading(true);
+    setIsLoadingDaily(true);
     setError(null);
     setIsMockData(false);
 
@@ -27,10 +31,34 @@ export default function TestingPage() {
       const isMock = response.headers.get('X-Mock-Data') === 'true';
       setIsMockData(isMock);
       setPreviewHtml(html);
+      setActivePreview('daily');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
-      setIsLoading(false);
+      setIsLoadingDaily(false);
+    }
+  };
+
+  const handlePreviewWeekly = async () => {
+    setIsLoadingWeekly(true);
+    setError(null);
+    setIsMockData(false);
+
+    try {
+      const response = await fetch('/api/preview/weekly');
+      if (!response.ok) {
+        throw new Error('Failed to load preview');
+      }
+      const html = await response.text();
+      
+      const isMock = response.headers.get('X-Mock-Data') === 'true';
+      setIsMockData(isMock);
+      setPreviewHtml(html);
+      setActivePreview('weekly');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setIsLoadingWeekly(false);
     }
   };
 
@@ -76,14 +104,23 @@ export default function TestingPage() {
       <p className="page-description">Preview and test your digests before sending.</p>
 
       <div className="testing-section">
-        <h2 className="section-title">Daily Digest Preview</h2>
-        <button
-          className="preview-button"
-          onClick={handlePreviewDaily}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Loading...' : 'Preview Daily Digest'}
-        </button>
+        <h2 className="section-title">Digest Previews</h2>
+        <div className="preview-buttons">
+          <button
+            className="preview-button"
+            onClick={handlePreviewDaily}
+            disabled={isLoadingDaily || isLoadingWeekly}
+          >
+            {isLoadingDaily ? 'Loading...' : 'Preview Daily Digest'}
+          </button>
+          <button
+            className="preview-button preview-button-weekly"
+            onClick={handlePreviewWeekly}
+            disabled={isLoadingDaily || isLoadingWeekly}
+          >
+            {isLoadingWeekly ? 'Loading...' : 'Preview Weekly Digest'}
+          </button>
+        </div>
 
         {error && (
           <p className="error-message">{error}</p>
@@ -99,7 +136,7 @@ export default function TestingPage() {
           <div className="preview-container">
             <iframe
               srcDoc={previewHtml}
-              title="Daily Digest Preview"
+              title={activePreview === 'weekly' ? 'Weekly Digest Preview' : 'Daily Digest Preview'}
               className="preview-iframe"
             />
           </div>

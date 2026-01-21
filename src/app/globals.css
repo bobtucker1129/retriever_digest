@@ -711,6 +711,20 @@ main {
   cursor: not-allowed;
 }
 
+.preview-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.preview-button-weekly {
+  background: #7c3aed;
+}
+
+.preview-button-weekly:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
 .error-message {
   color: #dc2626;
   font-size: 0.875rem;
