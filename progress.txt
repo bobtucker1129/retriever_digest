@@ -86,3 +86,18 @@ Thread: https://ampcode.com/threads/T-019bded0-3396-704f-a87c-aa26e7087b94
   - Seeds must use dotenv/config import at top for environment variables
 
 ---
+
+## 2026-01-21 - US-007
+Thread: https://ampcode.com/threads/T-019bded2-f46e-751b-aac2-3714e4c0a8c2
+- Created admin layout with header, Retriever logo (inline SVG), and navigation tabs
+- Added globals.css with responsive styling and CSS variables
+- Created Navigation component with active tab highlighting using usePathname
+- Created placeholder pages for /goals, /recipients, /testing routes
+- Root page redirects to /goals
+- Verified all pages work via dev server on localhost:3000
+- **Learnings for future iterations:**
+  - Use `'use client'` directive for components using Next.js hooks like usePathname
+  - Inline SVG logos avoid external asset dependencies and bundle well
+  - CSS variables in :root scope for consistent theming across components
+
+---
