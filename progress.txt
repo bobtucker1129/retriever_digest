@@ -360,3 +360,16 @@ Thread: https://ampcode.com/threads/T-019bdef2-6c89-7506-8109-6c78c033947a
   - Resend SDK uses `{ data, error }` pattern - check error first
   - Handle both missing env vars and API errors separately
 ---
+
+## 2026-01-21 - US-038
+Thread: https://ampcode.com/threads/T-019bdef3-4b03-71e1-9dfd-0b005350e4bb
+- Created `sendDailyDigest()` function in `src/lib/daily-digest.ts`
+- Fetches all active recipients from database
+- Generates personalized HTML for each recipient using existing `generateDailyDigest()`
+- Sends email with subject "🐕 Retriever Daily Digest - [Date]" via Resend
+- Logs success/failure for each recipient with console.log/console.error
+- Returns `SendDigestResult` with sent, failed, and errors array
+- **Learnings for future iterations:**
+  - Reuse existing functions (generateDailyDigest, sendEmail) for composition
+  - Format date string for email subject using toLocaleDateString with short format
+---
