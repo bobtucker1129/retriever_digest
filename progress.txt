@@ -4,6 +4,8 @@ Started: Tue Jan 20 23:22:04 EST 2026
 ## Codebase Patterns
 - Next.js 14 App Router with TypeScript in `src/app` directory
 - Run `npx tsc --noEmit` to typecheck
+- Prisma 7 uses `prisma.config.ts` for DATABASE_URL (not in schema.prisma)
+- Prisma client generated to `src/generated/prisma`
 
 ---
 
@@ -17,5 +19,19 @@ Thread: https://ampcode.com/threads/T-019bdec9-e13c-74a8-9e57-bf55a5064abe
 - **Learnings for future iterations:**
   - Create-next-app fails when directory has existing files; manually set up instead
   - Next.js 14 with App Router uses `src/app` directory structure
+
+---
+
+## 2026-01-21 - US-002
+Thread: https://ampcode.com/threads/T-019bdecb-9c0b-76cf-94a0-8a968d67b816
+- Set up Prisma with PostgreSQL connection
+- Installed prisma (dev) and dotenv packages
+- Created prisma/schema.prisma with PostgreSQL provider
+- Created prisma.config.ts with DATABASE_URL configuration
+- Prisma client generated to src/generated/prisma
+- **Learnings for future iterations:**
+  - Prisma 7 no longer uses `url = env("DATABASE_URL")` in schema.prisma
+  - Connection URL is now configured in prisma.config.ts
+  - Must install dotenv for prisma.config.ts to read env vars
 
 ---
