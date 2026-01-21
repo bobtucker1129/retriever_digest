@@ -373,3 +373,16 @@ Thread: https://ampcode.com/threads/T-019bdef3-4b03-71e1-9dfd-0b005350e4bb
   - Reuse existing functions (generateDailyDigest, sendEmail) for composition
   - Format date string for email subject using toLocaleDateString with short format
 ---
+
+## 2026-01-21 - US-039
+Thread: https://ampcode.com/threads/T-019bdef4-34f1-725e-888e-7ad06bcc119c
+- Created POST `/api/digest/daily` endpoint in src/app/api/digest/daily/route.ts
+- Validates `X-Cron-Secret` header against `CRON_SECRET` env var
+- Returns 401 if secret header missing/invalid
+- Returns 400 if no digest data available (uses getLatestDigestData check)
+- Returns JSON with success, sent, and failed counts on success
+- Added `/api/digest` to middleware PUBLIC_PATHS for cron access (has its own auth)
+- **Learnings for future iterations:**
+  - API routes with custom auth (like cron secrets) must be added to PUBLIC_PATHS in middleware
+  - Use startsWith matching in PUBLIC_PATHS to cover all sub-routes under a prefix
+---
