@@ -486,3 +486,16 @@ Thread: https://ampcode.com/threads/T-019bdefe-75f2-73c4-8b84-d210a2d62e04
   - Follow same pattern as daily digest API - both endpoints under `/api/digest` prefix
   - Reuse getWeekBoundaries() for consistent week start date in subject line
 ---
+
+## 2026-01-21 - US-047
+Thread: https://ampcode.com/threads/T-019bdeff-a0dd-72cb-9266-a29f5b5fad4d
+- Added "Preview Weekly Digest" button to Testing page with purple styling
+- Created GET `/api/preview/weekly` endpoint that returns weekly HTML
+- Added `generateWeeklyDigestWithMockFallback()` function in weekly-digest.ts with mock data fallback
+- Updated Testing page to support both daily and weekly preview buttons in a flex row
+- Preview iframe title dynamically updates based on which preview is active
+- X-Mock-Data header indicates when using sample data (no real DigestData)
+- **Learnings for future iterations:**
+  - Follow same pattern as daily preview: mock fallback function + API route + button
+  - Use separate loading states (isLoadingDaily/isLoadingWeekly) to disable both buttons during load
+---
