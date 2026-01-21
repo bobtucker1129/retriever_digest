@@ -424,3 +424,19 @@ Thread: https://ampcode.com/threads/T-019bdef7-ba37-746f-aae7-c98027530ab4
   - Reuse generateDailyDigestWithMockFallback for both preview and test email
   - Add "(TEST)" suffix to test email subjects to distinguish from real digests
 ---
+
+## 2026-01-21 - US-043
+Thread: https://ampcode.com/threads/T-019bdef9-b31f-7271-9627-3f2abb1a3bb2
+- Created `src/lib/weekly-digest.ts` with `getWeeklyDigestData()` function
+- Calculates week boundaries (Mon 00:00 to Fri 23:59) using getWeekBoundaries helper
+- Fetches DigestData records for this week and last week in parallel
+- Aggregates all 4 metrics: revenue, salesCount, estimatesCreated, newCustomers
+- Calculates week-over-week percentage changes for each metric
+- Aggregates PM and BD weekly performance summaries from daily data
+- Extracts top highlights from the week (up to 10)
+- Uses latest daily record for MTD/YTD data
+- **Learnings for future iterations:**
+  - Use `as unknown as Type` for Prisma JSON fields to satisfy TypeScript
+  - Week boundaries: getDay() returns 0 for Sunday, so adjust accordingly
+  - Aggregate performance data using Map for O(n) efficiency
+---
