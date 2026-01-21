@@ -460,3 +460,15 @@ Thread: https://ampcode.com/threads/T-019bdefb-24f1-763e-b5ea-64d2793696ae
   - Use Date.toLocaleDateString with options for week range formatting
   - Export PerformanceData type for use in other modules
 ---
+
+## 2026-01-21 - US-045
+Thread: https://ampcode.com/threads/T-019bdefd-523a-769b-9069-8b433b45f3ba
+- Created `generateWeeklyDigest(recipientName: string)` function in weekly-digest.ts
+- Function fetches weekly data via `getWeeklyDigestData()`, goals from database, and AI content
+- Converts Prisma Decimal fields to Number for goal values
+- Falls back to empty data structure if no weekly data available
+- Calls existing `generateWeeklyDigestHTML()` with assembled data
+- **Learnings for future iterations:**
+  - Follow same pattern as generateDailyDigest: fetch data → fetch goals → generate AI → call HTML generator
+  - Use Number() to convert Prisma Decimal fields when passing to template functions
+---
