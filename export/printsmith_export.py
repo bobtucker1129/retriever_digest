@@ -251,6 +251,53 @@ def get_pm_open_invoices(conn):
         raise
 
 
+def get_bd_open_invoices(conn):
+    """
+    Query open (pending) invoices grouped by BD (salesrep field).
+    Returns list of BDs with their open invoice count and total dollars.
+    """
+    logger.info("Querying open invoices by BD...")
+    
+    valid_bds = ('House', 'Paige Chamberlain', 'Sean Swaim', 'Mike Meyer', 'Dave Tanner', 'Rob Grayson', 'Robert Galle')
+    
+    query = """
+        SELECT 
+            ib.salesrep AS bd_name,
+            COUNT(*) AS open_count,
+            COALESCE(SUM(ib.adjustedamountdue), 0) AS open_total_dollars
+        FROM invoice i
+        JOIN invoicebase ib ON i.id = ib.id
+        WHERE i.onpendinglist = true
+          AND ib.isdeleted = false
+          AND ib.voided = false
+          AND ib.salesrep IN %s
+        GROUP BY ib.salesrep
+        ORDER BY open_total_dollars DESC
+    """
+    
+    bd_data = []
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (valid_bds,))
+            rows = cur.fetchall()
+            
+            for row in rows:
+                bd = {
+                    'bd_name': row[0],
+                    'open_count': row[1],
+                    'open_total_dollars': float(row[2]) if row[2] else 0.0
+                }
+                bd_data.append(bd)
+            
+            logger.info(f"Found open invoices for {len(bd_data)} BDs")
+            return bd_data
+            
+    except Exception as e:
+        logger.error(f"Error querying BD open invoices: {e}")
+        raise
+
+
 def main():
     """Main entry point for the export script."""
     logger.info("Starting PrintSmith export...")
@@ -269,6 +316,9 @@ def main():
         
         pm_open_data = get_pm_open_invoices(conn)
         logger.info(f"PM open invoices: {len(pm_open_data)} PMs with open invoices")
+        
+        bd_open_data = get_bd_open_invoices(conn)
+        logger.info(f"BD open invoices: {len(bd_open_data)} BDs with open invoices")
         
         logger.info("Export completed successfully")
         
