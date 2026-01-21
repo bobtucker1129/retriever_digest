@@ -542,3 +542,57 @@ export async function generateWeeklyDigest(recipientName: string): Promise<strin
 
   return generateWeeklyDigestHTML(recipientName, weeklyData, monthly, annual, aiContent);
 }
+
+export interface SendWeeklyDigestResult {
+  sent: number;
+  failed: number;
+  errors: string[];
+}
+
+export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
+  const recipients = await prisma.recipient.findMany({
+    where: { active: true },
+  });
+
+  const result: SendWeeklyDigestResult = {
+    sent: 0,
+    failed: 0,
+    errors: [],
+  };
+
+  const today = new Date();
+  const weekBounds = getWeekBoundaries(today);
+  const weekStartStr = weekBounds.start.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const subject = `🐕 Retriever Weekly Digest - Week of ${weekStartStr}`;
+
+  for (const recipient of recipients) {
+    try {
+      const html = await generateWeeklyDigest(recipient.name);
+      const emailResult = await sendEmail({
+        to: recipient.email,
+        subject,
+        html,
+      });
+
+      if (emailResult.success) {
+        console.log(`[Weekly Digest] Sent to ${recipient.name} <${recipient.email}>`);
+        result.sent++;
+      } else {
+        console.error(`[Weekly Digest] Failed to send to ${recipient.email}: ${emailResult.error}`);
+        result.failed++;
+        result.errors.push(`${recipient.email}: ${emailResult.error}`);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[Weekly Digest] Error sending to ${recipient.email}: ${errorMessage}`);
+      result.failed++;
+      result.errors.push(`${recipient.email}: ${errorMessage}`);
+    }
+  }
+
+  console.log(`[Weekly Digest] Complete - Sent: ${result.sent}, Failed: ${result.failed}`);
+  return result;
+}
