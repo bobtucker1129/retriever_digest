@@ -8,6 +8,8 @@ Started: Tue Jan 20 23:22:04 EST 2026
 - Prisma client generated to `src/generated/prisma`
 - Manually create migration files when DB unavailable: `prisma/migrations/<timestamp>_<name>/migration.sql`
 - Use `IF NOT EXISTS` in migration SQL for idempotency
+- Prisma 7 requires driver adapter: `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })`
+- Import PrismaClient from `src/generated/prisma/client` (not the folder directly)
 
 ---
 
@@ -69,5 +71,18 @@ Thread: https://ampcode.com/threads/T-019bdecf-329f-777e-8669-814c097a9078
 - Regenerated Prisma client with DigestData model types
 - **Learnings for future iterations:**
   - Use JSONB (not JSON) in PostgreSQL for better indexing/querying support
+
+---
+
+## 2026-01-21 - US-006
+Thread: https://ampcode.com/threads/T-019bded0-3396-704f-a87c-aa26e7087b94
+- Created prisma/seed.ts with sample data for Goals, Recipients, and DigestData
+- Added `prisma:seed` script and prisma config to package.json
+- Installed tsx (TypeScript executor) and @prisma/adapter-pg with pg driver
+- **Learnings for future iterations:**
+  - Prisma 7 requires driver adapters for all database connections
+  - Use `@prisma/adapter-pg` with `PrismaPg({ connectionString })` for PostgreSQL
+  - Import PrismaClient from `client.ts` file in generated folder, not from the folder directly
+  - Seeds must use dotenv/config import at top for environment variables
 
 ---
