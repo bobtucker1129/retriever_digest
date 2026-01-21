@@ -243,3 +243,18 @@ Thread: https://ampcode.com/threads/T-019bdee6-7d7f-7182-bd55-aabf47012d0e
   - Python weekday(): 0=Monday, 5=Saturday, 6=Sunday
 
 ---
+
+## 2026-01-21 - US-018
+Thread: https://ampcode.com/threads/T-019bdee7-e3f8-7702-baea-b6701bc729b1
+- Added `get_estimates_created()` function to export yesterday's estimates
+- Query joins `estimate` and `invoicebase` tables on id
+- Filters by `ordereddate`, `isdeleted = false`, `voided = false`
+- Returns `estimate_count` and `top_estimates` (top 10 by amount)
+- Returns invoicenumber, account_name, takenby, adjustedamountdue for each estimate
+- Updated `main()` to call and log the new estimate export
+- **Learnings for future iterations:**
+  - Follow same query pattern as invoices: JOIN on id, filter deleted/voided
+  - Estimates use `ordereddate` (not `pickupdate` like invoices)
+  - Return top N items for "highlights" sections to avoid email bloat
+
+---

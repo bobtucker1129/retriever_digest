@@ -291,7 +291,7 @@
         "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
