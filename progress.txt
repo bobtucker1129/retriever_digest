@@ -6,6 +6,8 @@ Started: Tue Jan 20 23:22:04 EST 2026
 - Run `npx tsc --noEmit` to typecheck
 - Prisma 7 uses `prisma.config.ts` for DATABASE_URL (not in schema.prisma)
 - Prisma client generated to `src/generated/prisma`
+- Manually create migration files when DB unavailable: `prisma/migrations/<timestamp>_<name>/migration.sql`
+- Use `IF NOT EXISTS` in migration SQL for idempotency
 
 ---
 
@@ -33,5 +35,18 @@ Thread: https://ampcode.com/threads/T-019bdecb-9c0b-76cf-94a0-8a968d67b816
   - Prisma 7 no longer uses `url = env("DATABASE_URL")` in schema.prisma
   - Connection URL is now configured in prisma.config.ts
   - Must install dotenv for prisma.config.ts to read env vars
+
+---
+
+## 2026-01-21 - US-003
+Thread: https://ampcode.com/threads/T-019bdecc-e470-75d8-bf72-0749e9bed927
+- Created Goal model with enum GoalType (MONTHLY, ANNUAL)
+- Added fields: id, type (unique), salesRevenue (Decimal 12,2), salesCount, estimatesCreated, newCustomers, createdAt, updatedAt
+- Created migration file in prisma/migrations/20260121000000_add_goal_model/
+- Regenerated Prisma client with Goal model types
+- **Learnings for future iterations:**
+  - Prisma migrations require DB connection; use `--create-only` or manually create migration files when DB is unavailable
+  - Use @unique on type field to enforce one record per GoalType (upsert pattern)
+  - Use `CREATE TABLE IF NOT EXISTS` and `CREATE TYPE` for idempotent migrations
 
 ---
