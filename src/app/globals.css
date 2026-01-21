@@ -740,3 +740,37 @@ main {
   border: none;
   background: white;
 }
+
+.section-description {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.test-email-form {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.test-email-input {
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  width: 280px;
+  max-width: 100%;
+}
+
+.test-email-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.success-message {
+  color: #16a34a;
+  font-size: 0.875rem;
+  margin-top: 1rem;
+}
