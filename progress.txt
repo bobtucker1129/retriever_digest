@@ -312,3 +312,16 @@ Thread: https://ampcode.com/threads/T-019bdeec-d760-74d2-8d6a-3f977fce14cd
   - Avoid ES2018+ regex flags (like `s`) for TypeScript target compatibility
 
 ---
+
+## 2026-01-21 - US-022
+Thread: https://ampcode.com/threads/T-019bdeee-5760-762b-92c7-5882230adb79
+- Added `get_ytd_metrics()` function to export year-to-date sales metrics
+- Query pattern follows MTD metrics but uses `first_of_year` (Jan 1) instead of `first_of_month`
+- Returns revenue, sales_count, estimates_created, new_customers for annual goal progress
+- Updated `main()` to call and log the new YTD metrics export
+- Python script compiles without syntax errors
+- **Learnings for future iterations:**
+  - Use `today.replace(month=1, day=1)` to get first day of current year in Python
+  - YTD/MTD metrics follow same query structure, just different date ranges
+
+---
