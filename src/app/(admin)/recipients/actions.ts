@@ -65,3 +65,47 @@ export async function addRecipient(name: string, email: string): Promise<AddReci
     return { success: false, error: 'Failed to add recipient' };
   }
 }
+
+export type UpdateRecipientResult = {
+  success: boolean;
+  error?: string;
+  recipient?: RecipientData;
+};
+
+export async function updateRecipient(id: string, name: string, email: string): Promise<UpdateRecipientResult> {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return { success: false, error: 'Invalid email format' };
+  }
+
+  if (!name.trim()) {
+    return { success: false, error: 'Name is required' };
+  }
+
+  try {
+    const existing = await prisma.recipient.findUnique({ where: { email } });
+    if (existing && existing.id !== id) {
+      return { success: false, error: 'A recipient with this email already exists' };
+    }
+
+    const recipient = await prisma.recipient.update({
+      where: { id },
+      data: {
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+      },
+    });
+
+    return {
+      success: true,
+      recipient: {
+        id: recipient.id,
+        name: recipient.name,
+        email: recipient.email,
+        active: recipient.active,
+      },
+    };
+  } catch {
+    return { success: false, error: 'Failed to update recipient' };
+  }
+}

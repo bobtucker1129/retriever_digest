@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { RecipientData, addRecipient } from './actions';
+import { RecipientData, addRecipient, updateRecipient } from './actions';
 
 type Props = {
   initialRecipients: RecipientData[];
@@ -10,6 +10,7 @@ type Props = {
 export default function RecipientsTable({ initialRecipients }: Props) {
   const [recipients, setRecipients] = useState<RecipientData[]>(initialRecipients);
   const [showModal, setShowModal] = useState(false);
+  const [editingRecipient, setEditingRecipient] = useState<RecipientData | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
@@ -22,14 +23,24 @@ export default function RecipientsTable({ initialRecipients }: Props) {
   };
 
   const handleOpenModal = () => {
+    setEditingRecipient(null);
     setName('');
     setEmail('');
     setError('');
     setShowModal(true);
   };
 
+  const handleOpenEditModal = (recipient: RecipientData) => {
+    setEditingRecipient(recipient);
+    setName(recipient.name);
+    setEmail(recipient.email);
+    setError('');
+    setShowModal(true);
+  };
+
   const handleCloseModal = () => {
     setShowModal(false);
+    setEditingRecipient(null);
     setName('');
     setEmail('');
     setError('');
@@ -50,19 +61,37 @@ export default function RecipientsTable({ initialRecipients }: Props) {
     }
 
     setIsSubmitting(true);
-    const result = await addRecipient(name, email);
-    setIsSubmitting(false);
 
-    if (result.success && result.recipient) {
-      const newRecipients = [...recipients, result.recipient].sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
-      setRecipients(newRecipients);
-      handleCloseModal();
-      setSuccessMessage('Recipient added');
-      setTimeout(() => setSuccessMessage(''), 3000);
+    if (editingRecipient) {
+      const result = await updateRecipient(editingRecipient.id, name, email);
+      setIsSubmitting(false);
+
+      if (result.success && result.recipient) {
+        const updatedRecipients = recipients.map((r) =>
+          r.id === editingRecipient.id ? result.recipient! : r
+        ).sort((a, b) => a.name.localeCompare(b.name));
+        setRecipients(updatedRecipients);
+        handleCloseModal();
+        setSuccessMessage('Recipient updated');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(result.error || 'Failed to update recipient');
+      }
     } else {
-      setError(result.error || 'Failed to add recipient');
+      const result = await addRecipient(name, email);
+      setIsSubmitting(false);
+
+      if (result.success && result.recipient) {
+        const newRecipients = [...recipients, result.recipient].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+        setRecipients(newRecipients);
+        handleCloseModal();
+        setSuccessMessage('Recipient added');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setError(result.error || 'Failed to add recipient');
+      }
     }
   };
 
@@ -102,7 +131,7 @@ export default function RecipientsTable({ initialRecipients }: Props) {
                   </td>
                   <td>
                     <div className="actions-cell">
-                      <button className="action-button edit">Edit</button>
+                      <button className="action-button edit" onClick={() => handleOpenEditModal(recipient)}>Edit</button>
                       <button className="action-button delete">Delete</button>
                     </div>
                   </td>
@@ -116,7 +145,7 @@ export default function RecipientsTable({ initialRecipients }: Props) {
       {showModal && (
         <div className="modal-overlay" onClick={handleCloseModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title">Add Recipient</h2>
+            <h2 className="modal-title">{editingRecipient ? 'Edit Recipient' : 'Add Recipient'}</h2>
             <form onSubmit={handleSubmit} className="modal-form">
               <div className="modal-field">
                 <label className="modal-label" htmlFor="name">Name</label>
@@ -156,7 +185,7 @@ export default function RecipientsTable({ initialRecipients }: Props) {
                   className="modal-button submit"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Adding...' : 'Add'}
+                  {isSubmitting ? (editingRecipient ? 'Saving...' : 'Adding...') : (editingRecipient ? 'Save' : 'Add')}
                 </button>
               </div>
             </form>
