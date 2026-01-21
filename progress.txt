@@ -229,3 +229,17 @@ Thread: https://ampcode.com/threads/T-019bdee5-a169-779c-8fac-55e49a31683f
   - Use `python3 -m py_compile <file>` to verify Python syntax without running
 
 ---
+
+## 2026-01-21 - US-017
+Thread: https://ampcode.com/threads/T-019bdee6-7d7f-7182-bd55-aabf47012d0e
+- Added `get_target_date()` function to calculate target date with weekend handling
+- Added `get_completed_invoices()` function with SQL query joining invoice and invoicebase
+- Query filters: pickupdate = target date, onpendinglist = false, isdeleted = false, voided = false
+- Returns invoices list with all required fields plus total_revenue and invoice_count
+- Weekend logic: Saturday → Friday, Sunday → Friday
+- **Learnings for future iterations:**
+  - Use Decimal for money aggregations to avoid float precision issues
+  - Use context manager `with conn.cursor() as cur:` for auto-cleanup
+  - Python weekday(): 0=Monday, 5=Saturday, 6=Sunday
+
+---
