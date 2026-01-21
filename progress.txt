@@ -472,3 +472,17 @@ Thread: https://ampcode.com/threads/T-019bdefd-523a-769b-9069-8b433b45f3ba
   - Follow same pattern as generateDailyDigest: fetch data → fetch goals → generate AI → call HTML generator
   - Use Number() to convert Prisma Decimal fields when passing to template functions
 ---
+
+## 2026-01-21 - US-046
+Thread: https://ampcode.com/threads/T-019bdefe-75f2-73c4-8b84-d210a2d62e04
+- Created POST `/api/digest/weekly` endpoint in src/app/api/digest/weekly/route.ts
+- Validates `X-Cron-Secret` header against `CRON_SECRET` env var
+- Returns 401 if secret header missing/invalid
+- Returns 400 if no weekly digest data available
+- Returns JSON with success, sent, and failed counts on success
+- Added `sendWeeklyDigest()` function in weekly-digest.ts to send to all active recipients
+- Email subject: "🐕 Retriever Weekly Digest - Week of [Date]"
+- **Learnings for future iterations:**
+  - Follow same pattern as daily digest API - both endpoints under `/api/digest` prefix
+  - Reuse getWeekBoundaries() for consistent week start date in subject line
+---
