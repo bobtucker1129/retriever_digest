@@ -9,7 +9,7 @@ export default async function RecipientsPage() {
   return (
     <div className="recipients-page">
       <h1 className="page-title">Recipients</h1>
-      <RecipientsTable recipients={recipients} />
+      <RecipientsTable initialRecipients={recipients} />
     </div>
   );
 }
