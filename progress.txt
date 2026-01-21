@@ -258,3 +258,16 @@ Thread: https://ampcode.com/threads/T-019bdee7-e3f8-7702-baea-b6701bc729b1
   - Return top N items for "highlights" sections to avoid email bloat
 
 ---
+
+## 2026-01-21 - US-019
+Thread: https://ampcode.com/threads/T-019bdee8-f89c-70b6-bff8-f2546da72c59
+- Added `get_pm_open_invoices()` function to export pending invoices grouped by PM
+- Query joins `invoice` and `invoicebase` tables, filters by `onpendinglist = true`
+- Filters to valid PMs: Jim, Steve, Shelley, Ellie, Ellie Lemire
+- Returns pm_name, open_count, open_total_dollars sorted by total descending
+- Updated `main()` to call and log the new PM open invoices export
+- **Learnings for future iterations:**
+  - Use tuple for SQL IN clause with psycopg2: `WHERE field IN %s` with `(tuple_value,)`
+  - Use COALESCE for SUM to handle NULL values when no records exist
+
+---
