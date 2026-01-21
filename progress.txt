@@ -347,3 +347,16 @@ Thread: https://ampcode.com/threads/T-019bdef0-4ffb-702b-b706-07dc39fc4cbb
   - Grid layouts work in most email clients with fallback behavior
   - Export types for DigestMetrics, DigestDataPayload for reuse in other modules
 ---
+
+## 2026-01-21 - US-037
+Thread: https://ampcode.com/threads/T-019bdef2-6c89-7506-8109-6c78c033947a
+- Installed Resend SDK via npm
+- Created `src/lib/email.ts` with `sendEmail()` utility function
+- Function accepts: to (string or array), subject, html
+- Returns success/failure status with optional messageId or error message
+- Validates RESEND_API_KEY and EMAIL_FROM env vars before sending
+- Environment variables were already in .env.example from US-001
+- **Learnings for future iterations:**
+  - Resend SDK uses `{ data, error }` pattern - check error first
+  - Handle both missing env vars and API errors separately
+---
