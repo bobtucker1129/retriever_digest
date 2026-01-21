@@ -499,3 +499,16 @@ Thread: https://ampcode.com/threads/T-019bdeff-a0dd-72cb-9266-a29f5b5fad4d
   - Follow same pattern as daily preview: mock fallback function + API route + button
   - Use separate loading states (isLoadingDaily/isLoadingWeekly) to disable both buttons during load
 ---
+
+## 2026-01-21 - US-048
+Thread: https://ampcode.com/threads/T-019bdf01-993e-7328-b929-163bc86492d6
+- Created `render.yaml` with web service and PostgreSQL database configuration
+- Build command includes prisma generate: `npm install && npx prisma generate && npm run build`
+- Start command: `npm run start`
+- Database URL uses Render's internal connection string via `fromDatabase` reference
+- Created `README.md` with all environment variables documented
+- README includes local development setup, deployment instructions, and API endpoint reference
+- **Learnings for future iterations:**
+  - Use `fromDatabase.property: connectionString` in render.yaml to reference internal DB URL
+  - `sync: false` for secrets means they must be set manually in Render dashboard
+---

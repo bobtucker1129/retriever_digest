@@ -102,3 +102,66 @@ The `render.yaml` file configures the deployment:
 ### Public
 
 - `POST /api/export` - Receive PrintSmith data export (requires `X-Export-Secret` header)
+
+## Render Cron Job Setup
+
+Render supports cron jobs to trigger scheduled tasks. Set up the following cron jobs to send daily and weekly digests automatically.
+
+### Daily Digest
+
+- **Schedule**: `0 12 * * *` (12:00 UTC = 4:00 AM PST)
+- **Endpoint**: `POST /api/digest/daily`
+- **Header**: `X-Cron-Secret: <your-cron-secret>`
+
+This sends the daily digest to all active recipients every morning before the workday starts.
+
+### Weekly Digest
+
+- **Schedule**: `0 2 * * 6` (02:00 UTC Saturday = 6:00 PM PST Friday)
+- **Endpoint**: `POST /api/digest/weekly`
+- **Header**: `X-Cron-Secret: <your-cron-secret>`
+
+This sends the weekly summary digest at the end of the business week on Friday evening.
+
+### Setting Up in Render
+
+1. In your Render dashboard, go to your web service
+2. Click **Cron Jobs** in the left sidebar
+3. Click **Create Cron Job**
+4. For each digest:
+   - **Name**: `daily-digest` or `weekly-digest`
+   - **Schedule**: Use the cron expression above
+   - **Command**: Use curl to call the endpoint (see examples below)
+
+### Example Curl Commands
+
+**Daily Digest:**
+```bash
+curl -X POST https://your-app.onrender.com/api/digest/daily \
+  -H "X-Cron-Secret: your-cron-secret-here"
+```
+
+**Weekly Digest:**
+```bash
+curl -X POST https://your-app.onrender.com/api/digest/weekly \
+  -H "X-Cron-Secret: your-cron-secret-here"
+```
+
+### Testing Cron Jobs Locally
+
+You can test the cron endpoints locally by running the curl commands against `http://localhost:3000`:
+
+```bash
+# Test daily digest
+curl -X POST http://localhost:3000/api/digest/daily \
+  -H "X-Cron-Secret: your-local-cron-secret"
+
+# Test weekly digest
+curl -X POST http://localhost:3000/api/digest/weekly \
+  -H "X-Cron-Secret: your-local-cron-secret"
+```
+
+Expected responses:
+- **Success**: `{"success":true,"sent":3,"failed":0}`
+- **No data**: `{"error":"No digest data available"}`
+- **Invalid secret**: `{"error":"Unauthorized"}`
