@@ -6,12 +6,15 @@ Connects to PrintSmith PostgreSQL database and exports sales data for Retriever 
 
 import os
 import sys
+import json
+import argparse
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
 import psycopg2
 from psycopg2 import OperationalError, DatabaseError
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -462,8 +465,104 @@ def get_ytd_metrics(conn):
         raise
 
 
+def post_to_api(data: dict) -> dict:
+    """POST assembled data to Render API."""
+    api_url = os.environ.get('RENDER_API_URL')
+    api_secret = os.environ.get('EXPORT_API_SECRET')
+    
+    if not api_url:
+        raise EnvironmentError("RENDER_API_URL environment variable not set")
+    if not api_secret:
+        raise EnvironmentError("EXPORT_API_SECRET environment variable not set")
+    
+    logger.info(f"Posting data to API: {api_url}")
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Export-Secret': api_secret
+    }
+    
+    try:
+        response = requests.post(api_url, json=data, headers=headers, timeout=30)
+        response.raise_for_status()
+        result = response.json()
+        logger.info(f"API response: {result}")
+        return result
+    except requests.exceptions.Timeout:
+        logger.error("API request timed out")
+        raise
+    except requests.exceptions.RequestException as e:
+        logger.error(f"API request failed: {e}")
+        raise
+
+
+def assemble_export_data(target_date, invoice_data, estimate_data, pm_data, bd_data, mtd_data, ytd_data) -> dict:
+    """Assemble all exported data into the API payload format."""
+    return {
+        'export_date': target_date.isoformat(),
+        'date': target_date.isoformat(),
+        'metrics': {
+            'dailyRevenue': invoice_data['total_revenue'],
+            'dailySalesCount': invoice_data['invoice_count'],
+            'dailyEstimatesCreated': estimate_data['estimate_count'],
+            'dailyNewCustomers': 0,  # Calculated separately if needed
+            'monthToDateRevenue': mtd_data['revenue'],
+            'monthToDateSalesCount': mtd_data['sales_count'],
+            'monthToDateEstimatesCreated': mtd_data['estimates_created'],
+            'monthToDateNewCustomers': mtd_data['new_customers'],
+            'yearToDateRevenue': ytd_data['revenue'],
+            'yearToDateSalesCount': ytd_data['sales_count'],
+            'yearToDateEstimatesCreated': ytd_data['estimates_created'],
+            'yearToDateNewCustomers': ytd_data['new_customers'],
+        },
+        'yesterday_invoices': invoice_data,
+        'yesterday_estimates': estimate_data,
+        'pm_table': pm_data,
+        'bd_table': bd_data,
+        'mtd_metrics': mtd_data,
+        'ytd_metrics': ytd_data,
+        'highlights': _generate_highlights(invoice_data, estimate_data),
+        'bdPerformance': [
+            {'name': bd['bd_name'], 'ordersCompleted': bd['open_count'], 'revenue': bd['open_total_dollars']}
+            for bd in bd_data
+        ],
+        'pmPerformance': [
+            {'name': pm['pm_name'], 'ordersCompleted': pm['open_count'], 'revenue': pm['open_total_dollars']}
+            for pm in pm_data
+        ],
+    }
+
+
+def _generate_highlights(invoice_data, estimate_data) -> list:
+    """Generate highlight items from invoice and estimate data."""
+    highlights = []
+    
+    # Add top invoices as highlights
+    for invoice in invoice_data.get('invoices', [])[:3]:
+        amount = invoice.get('adjustedamountdue', 0)
+        account = invoice.get('account_name', 'Unknown')
+        highlights.append({
+            'type': 'invoice',
+            'description': f"Completed order for {account} - ${amount:,.2f}"
+        })
+    
+    # Add top estimates as highlights
+    for estimate in estimate_data.get('top_estimates', [])[:2]:
+        amount = estimate.get('adjustedamountdue', 0)
+        account = estimate.get('account_name', 'Unknown')
+        highlights.append({
+            'type': 'estimate',
+            'description': f"New estimate for {account} - ${amount:,.2f}"
+        })
+    
+    return highlights
+
+
 def main():
     """Main entry point for the export script."""
+    parser = argparse.ArgumentParser(description='Export PrintSmith data to Retriever Daily Digest')
+    parser.add_argument('--dry-run', action='store_true', help='Print JSON output without posting to API')
+    args = parser.parse_args()
     logger.info("Starting PrintSmith export...")
     logger.info(f"Export timestamp: {datetime.now().isoformat()}")
     
@@ -490,7 +589,19 @@ def main():
         ytd_data = get_ytd_metrics(conn)
         logger.info(f"YTD metrics: ${ytd_data['revenue']:,.2f} revenue, {ytd_data['sales_count']} sales")
         
-        logger.info("Export completed successfully")
+        # Assemble all data
+        export_data = assemble_export_data(
+            target_date, invoice_data, estimate_data, 
+            pm_open_data, bd_open_data, mtd_data, ytd_data
+        )
+        
+        if args.dry_run:
+            logger.info("Dry run mode - printing JSON output:")
+            print(json.dumps(export_data, indent=2, default=str))
+        else:
+            # POST to API
+            result = post_to_api(export_data)
+            logger.info(f"Export completed successfully: {result}")
         
     except Exception as e:
         logger.error(f"Export failed: {e}")

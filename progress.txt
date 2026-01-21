@@ -525,3 +525,17 @@ Thread: https://ampcode.com/threads/T-019bdf02-b579-7582-bc42-ee7cb79b9363
   - Documentation-only stories just update README, no code changes
   - Include both production (render.com URL) and local testing examples
 ---
+
+## 2026-01-21 - US-050
+Thread: https://ampcode.com/threads/T-019bdf03-a955-77fa-a942-45a95c26e146
+- Added "PrintSmith Export Script Setup" section to README.md
+- Documented Python 3 and pip installation prerequisites
+- Documented pip install for requirements.txt dependencies
+- Added environment variables table for PrintSmith connection and API config
+- Documented Windows Task Scheduler setup for 4:00 AM EST daily execution
+- Included complete Task Scheduler XML configuration for easy import
+- Added comprehensive troubleshooting section covering common issues
+- **Learnings for future iterations:**
+  - Documentation-only stories just update README, no code changes
+  - Task Scheduler XML can be exported/imported for easy replication
+---
