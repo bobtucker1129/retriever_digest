@@ -135,3 +135,16 @@ Thread: https://ampcode.com/threads/T-019bded8-b1c3-7663-8ed9-609bd0f3536b
   - Export types from actions.ts for use in UI components
 
 ---
+
+## 2026-01-21 - US-010
+Thread: https://ampcode.com/threads/T-019bdeda-f485-713b-8ea3-bad6507eb80a
+- Added saveGoal server action with upsert logic for goals
+- Updated GoalForm with Save button, loading state, and success/error messages
+- Added CSS styles for save button and goal messages with responsive layout
+- Using defaultValue ensures form retains values after save (no flash/reset)
+- **Learnings for future iterations:**
+  - Prisma Decimal fields accept string values directly, no need to import Decimal class
+  - Use handleSubmit with formRef pattern for client-side form handling with server actions
+  - Success/error messages with setTimeout auto-clear provide good UX feedback
+
+---
