@@ -1,6 +1,7 @@
 'use client';
 
-import { GoalData } from './actions';
+import { useState, useRef } from 'react';
+import { GoalData, saveGoal } from './actions';
 
 type GoalFormProps = {
   title: string;
@@ -9,10 +10,35 @@ type GoalFormProps = {
 };
 
 export default function GoalForm({ title, type, initialData }: GoalFormProps) {
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formRef.current) return;
+
+    setSaving(true);
+    setMessage(null);
+
+    const formData = new FormData(formRef.current);
+    const result = await saveGoal(formData);
+
+    setSaving(false);
+
+    if (result.success) {
+      setMessage({ type: 'success', text: 'Goals saved successfully' });
+    } else {
+      setMessage({ type: 'error', text: result.error || 'Failed to save goals' });
+    }
+
+    setTimeout(() => setMessage(null), 3000);
+  }
+
   return (
     <div className="goal-section">
       <h2 className="goal-section-title">{title}</h2>
-      <form className="goal-form">
+      <form ref={formRef} className="goal-form" onSubmit={handleSubmit}>
         <input type="hidden" name="type" value={type} />
         
         <div className="goal-field">
@@ -73,6 +99,17 @@ export default function GoalForm({ title, type, initialData }: GoalFormProps) {
             min="0"
             className="goal-input"
           />
+        </div>
+
+        <div className="goal-actions">
+          <button type="submit" className="save-button" disabled={saving}>
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+          {message && (
+            <p className={`goal-message ${message.type}`}>
+              {message.text}
+            </p>
+          )}
         </div>
       </form>
     </div>

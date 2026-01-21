@@ -10,6 +10,11 @@ export type GoalData = {
   newCustomers: number;
 };
 
+export type SaveGoalResult = {
+  success: boolean;
+  error?: string;
+};
+
 export async function getGoals(): Promise<{
   monthly: GoalData;
   annual: GoalData;
@@ -44,4 +49,38 @@ export async function getGoals(): Promise<{
         }
       : emptyGoal,
   };
+}
+
+export async function saveGoal(formData: FormData): Promise<SaveGoalResult> {
+  try {
+    const type = formData.get('type') as string;
+    const salesRevenue = formData.get('salesRevenue') as string;
+    const salesCount = formData.get('salesCount') as string;
+    const estimatesCreated = formData.get('estimatesCreated') as string;
+    const newCustomers = formData.get('newCustomers') as string;
+
+    const goalType = type === 'monthly' ? GoalType.MONTHLY : GoalType.ANNUAL;
+
+    await prisma.goal.upsert({
+      where: { type: goalType },
+      update: {
+        salesRevenue: salesRevenue || '0',
+        salesCount: parseInt(salesCount || '0', 10),
+        estimatesCreated: parseInt(estimatesCreated || '0', 10),
+        newCustomers: parseInt(newCustomers || '0', 10),
+      },
+      create: {
+        type: goalType,
+        salesRevenue: salesRevenue || '0',
+        salesCount: parseInt(salesCount || '0', 10),
+        estimatesCreated: parseInt(estimatesCreated || '0', 10),
+        newCustomers: parseInt(newCustomers || '0', 10),
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save goal:', error);
+    return { success: false, error: 'Failed to save goals. Please try again.' };
+  }
 }
