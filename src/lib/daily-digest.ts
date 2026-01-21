@@ -3,6 +3,13 @@
 import prisma from '@/lib/db';
 import { GoalType } from '@/generated/prisma/client';
 import { generateAIContent, type AIContent } from '@/lib/ai-content';
+import { sendEmail } from '@/lib/email';
+
+export interface SendDigestResult {
+  sent: number;
+  failed: number;
+  errors: string[];
+}
 
 export interface DigestMetrics {
   dailyRevenue: number;
@@ -320,4 +327,52 @@ export async function generateDailyDigest(recipientName: string): Promise<string
   `.trim();
 
   return html;
+}
+
+export async function sendDailyDigest(): Promise<SendDigestResult> {
+  const recipients = await prisma.recipient.findMany({
+    where: { active: true },
+  });
+
+  const result: SendDigestResult = {
+    sent: 0,
+    failed: 0,
+    errors: [],
+  };
+
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+  const subject = `🐕 Retriever Daily Digest - ${dateStr}`;
+
+  for (const recipient of recipients) {
+    try {
+      const html = await generateDailyDigest(recipient.name);
+      const emailResult = await sendEmail({
+        to: recipient.email,
+        subject,
+        html,
+      });
+
+      if (emailResult.success) {
+        console.log(`[Daily Digest] Sent to ${recipient.name} <${recipient.email}>`);
+        result.sent++;
+      } else {
+        console.error(`[Daily Digest] Failed to send to ${recipient.email}: ${emailResult.error}`);
+        result.failed++;
+        result.errors.push(`${recipient.email}: ${emailResult.error}`);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[Daily Digest] Error sending to ${recipient.email}: ${errorMessage}`);
+      result.failed++;
+      result.errors.push(`${recipient.email}: ${errorMessage}`);
+    }
+  }
+
+  console.log(`[Daily Digest] Complete - Sent: ${result.sent}, Failed: ${result.failed}`);
+  return result;
 }
