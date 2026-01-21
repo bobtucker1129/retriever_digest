@@ -189,3 +189,16 @@ Thread: https://ampcode.com/threads/T-019bdee0-e4f4-724b-8b64-fde86485d24a
   - When checking for duplicate emails on update, exclude the current record by comparing IDs
 
 ---
+
+## 2026-01-20 - US-014
+Thread: https://ampcode.com/threads/T-019bdee2-80b0-70c8-b059-c66e932d6dac
+- Added deleteRecipient server action in actions.ts
+- Extended RecipientsTable with delete confirmation dialog
+- Delete button opens modal with "Delete [name]? This cannot be undone." message
+- Confirming deletion removes recipient from database and updates table without reload
+- Added CSS styles for delete button (.modal-button.delete) and confirmation text
+- **Learnings for future iterations:**
+  - Reuse modal-overlay pattern for confirmation dialogs, just render different content
+  - Track deletingRecipient state separately from editingRecipient to avoid conflicts
+
+---
