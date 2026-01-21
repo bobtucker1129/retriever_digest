@@ -271,3 +271,15 @@ Thread: https://ampcode.com/threads/T-019bdee8-f89c-70b6-bff8-f2546da72c59
   - Use COALESCE for SUM to handle NULL values when no records exist
 
 ---
+
+## 2026-01-21 - US-020
+Thread: https://ampcode.com/threads/T-019bdeea-3371-74e2-bf81-4815cdb3321f
+- Added `get_bd_open_invoices()` function to export pending invoices grouped by BD
+- Query joins `invoice` and `invoicebase` tables, filters by `onpendinglist = true`
+- Filters to valid BDs: House, Paige Chamberlain, Sean Swaim, Mike Meyer, Dave Tanner, Rob Grayson, Robert Galle
+- Returns bd_name, open_count, open_total_dollars sorted by total descending
+- Updated `main()` to call and log the new BD open invoices export
+- **Learnings for future iterations:**
+  - Follow exact same pattern as get_pm_open_invoices but use `salesrep` field instead of `takenby`
+
+---
