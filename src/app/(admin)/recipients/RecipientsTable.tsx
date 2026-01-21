@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { RecipientData, addRecipient, updateRecipient } from './actions';
+import { RecipientData, addRecipient, updateRecipient, deleteRecipient } from './actions';
 
 type Props = {
   initialRecipients: RecipientData[];
@@ -16,6 +16,8 @@ export default function RecipientsTable({ initialRecipients }: Props) {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingRecipient, setDeletingRecipient] = useState<RecipientData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -95,6 +97,32 @@ export default function RecipientsTable({ initialRecipients }: Props) {
     }
   };
 
+  const handleDeleteClick = (recipient: RecipientData) => {
+    setDeletingRecipient(recipient);
+  };
+
+  const handleCancelDelete = () => {
+    setDeletingRecipient(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingRecipient) return;
+
+    setIsDeleting(true);
+    const result = await deleteRecipient(deletingRecipient.id);
+    setIsDeleting(false);
+
+    if (result.success) {
+      setRecipients(recipients.filter((r) => r.id !== deletingRecipient.id));
+      setDeletingRecipient(null);
+      setSuccessMessage('Recipient deleted');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } else {
+      setError(result.error || 'Failed to delete recipient');
+      setDeletingRecipient(null);
+    }
+  };
+
   return (
     <>
       <div className="recipients-header">
@@ -132,7 +160,7 @@ export default function RecipientsTable({ initialRecipients }: Props) {
                   <td>
                     <div className="actions-cell">
                       <button className="action-button edit" onClick={() => handleOpenEditModal(recipient)}>Edit</button>
-                      <button className="action-button delete">Delete</button>
+                      <button className="action-button delete" onClick={() => handleDeleteClick(recipient)}>Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -189,6 +217,35 @@ export default function RecipientsTable({ initialRecipients }: Props) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deletingRecipient && (
+        <div className="modal-overlay" onClick={handleCancelDelete}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal-title">Delete Recipient</h2>
+            <p className="delete-confirmation-text">
+              Delete {deletingRecipient.name}? This cannot be undone.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-button cancel"
+                onClick={handleCancelDelete}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="modal-button delete"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

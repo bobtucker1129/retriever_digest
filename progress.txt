@@ -176,3 +176,16 @@ Thread: https://ampcode.com/threads/T-019bdede-fbee-720d-9763-002024a7c0c1
   - Keep new recipients sorted alphabetically when adding to local state
 
 ---
+
+## 2026-01-20 - US-013
+Thread: https://ampcode.com/threads/T-019bdee0-e4f4-724b-8b64-fde86485d24a
+- Added updateRecipient server action in actions.ts with email validation and duplicate check
+- Extended RecipientsTable to support edit mode with editingRecipient state
+- Edit button opens modal pre-filled with current recipient name and email
+- Modal title and submit button text change based on add vs edit mode
+- Table updates without page reload after successful edit
+- **Learnings for future iterations:**
+  - Reuse existing modal for add/edit by tracking editingRecipient state (null = add, object = edit)
+  - When checking for duplicate emails on update, exclude the current record by comparing IDs
+
+---

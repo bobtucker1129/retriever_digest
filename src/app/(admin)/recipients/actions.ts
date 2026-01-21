@@ -109,3 +109,17 @@ export async function updateRecipient(id: string, name: string, email: string): 
     return { success: false, error: 'Failed to update recipient' };
   }
 }
+
+export type DeleteRecipientResult = {
+  success: boolean;
+  error?: string;
+};
+
+export async function deleteRecipient(id: string): Promise<DeleteRecipientResult> {
+  try {
+    await prisma.recipient.delete({ where: { id } });
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Failed to delete recipient' };
+  }
+}
