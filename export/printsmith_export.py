@@ -298,6 +298,88 @@ def get_bd_open_invoices(conn):
         raise
 
 
+def get_mtd_metrics(conn):
+    """
+    Query month-to-date sales metrics for goal progress.
+    Returns: revenue, sales_count, estimates_created, new_customers.
+    """
+    today = datetime.now().date()
+    first_of_month = today.replace(day=1)
+    logger.info(f"Querying MTD metrics from {first_of_month} to {today}...")
+    
+    result = {
+        'revenue': 0.0,
+        'sales_count': 0,
+        'estimates_created': 0,
+        'new_customers': 0
+    }
+    
+    try:
+        with conn.cursor() as cur:
+            revenue_query = """
+                SELECT 
+                    COUNT(*) AS sales_count,
+                    COALESCE(SUM(ib.adjustedamountdue), 0) AS revenue
+                FROM invoice i
+                JOIN invoicebase ib ON i.id = ib.id
+                WHERE DATE(i.pickupdate) >= %s
+                  AND DATE(i.pickupdate) <= %s
+                  AND i.onpendinglist = false
+                  AND ib.isdeleted = false
+                  AND ib.voided = false
+            """
+            cur.execute(revenue_query, (first_of_month, today))
+            row = cur.fetchone()
+            result['sales_count'] = row[0] if row[0] else 0
+            result['revenue'] = float(row[1]) if row[1] else 0.0
+            
+            estimates_query = """
+                SELECT COUNT(*) AS estimates_created
+                FROM estimate e
+                JOIN invoicebase ib ON e.id = ib.id
+                WHERE DATE(ib.ordereddate) >= %s
+                  AND DATE(ib.ordereddate) <= %s
+                  AND ib.isdeleted = false
+                  AND ib.voided = false
+            """
+            cur.execute(estimates_query, (first_of_month, today))
+            row = cur.fetchone()
+            result['estimates_created'] = row[0] if row[0] else 0
+            
+            new_customers_query = """
+                SELECT COUNT(DISTINCT ib.accountid)
+                FROM invoice i
+                JOIN invoicebase ib ON i.id = ib.id
+                WHERE DATE(i.pickupdate) >= %s
+                  AND DATE(i.pickupdate) <= %s
+                  AND i.onpendinglist = false
+                  AND ib.isdeleted = false
+                  AND ib.voided = false
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM invoice i2
+                      JOIN invoicebase ib2 ON i2.id = ib2.id
+                      WHERE ib2.accountid = ib.accountid
+                        AND DATE(i2.pickupdate) < %s
+                        AND i2.onpendinglist = false
+                        AND ib2.isdeleted = false
+                        AND ib2.voided = false
+                  )
+            """
+            cur.execute(new_customers_query, (first_of_month, today, first_of_month))
+            row = cur.fetchone()
+            result['new_customers'] = row[0] if row[0] else 0
+            
+            logger.info(f"MTD metrics: ${result['revenue']:,.2f} revenue, {result['sales_count']} sales, "
+                       f"{result['estimates_created']} estimates, {result['new_customers']} new customers")
+            
+            return result
+            
+    except Exception as e:
+        logger.error(f"Error querying MTD metrics: {e}")
+        raise
+
+
 def main():
     """Main entry point for the export script."""
     logger.info("Starting PrintSmith export...")
@@ -319,6 +401,9 @@ def main():
         
         bd_open_data = get_bd_open_invoices(conn)
         logger.info(f"BD open invoices: {len(bd_open_data)} BDs with open invoices")
+        
+        mtd_data = get_mtd_metrics(conn)
+        logger.info(f"MTD metrics: ${mtd_data['revenue']:,.2f} revenue, {mtd_data['sales_count']} sales")
         
         logger.info("Export completed successfully")
         
