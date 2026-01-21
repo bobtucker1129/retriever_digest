@@ -325,3 +325,25 @@ Thread: https://ampcode.com/threads/T-019bdeee-5760-762b-92c7-5882230adb79
   - YTD/MTD metrics follow same query structure, just different date ranges
 
 ---
+
+## 2026-01-21 - US-036
+Thread: https://ampcode.com/threads/T-019bdef0-4ffb-702b-b706-07dc39fc4cbb
+- Created `src/lib/daily-digest.ts` with `generateDailyDigest(recipientName: string)` function
+- Fetches latest DigestData from database and Goal data for progress calculations
+- Generates AI content (quote or joke) using existing `generateAIContent()` function
+- Complete HTML email template with:
+  - Header with Retriever logo and date
+  - Personalized greeting with recipient name
+  - Yesterday's numbers grid (revenue, orders, estimates, new customers)
+  - Highlights section (conditional)
+  - PM and BD performance tables (conditional)
+  - Monthly and Annual progress bars with color coding
+  - AI quote/joke at bottom with styled callout
+- Helper functions: formatCurrency(), formatNumber(), formatDate(), calculateProgress(), renderProgressBar()
+- Progress bars show color-coded fill based on percentage (green > lime > yellow > orange > red)
+- **Learnings for future iterations:**
+  - Use Intl.NumberFormat for currency/number formatting
+  - Inline styles required for email HTML (no external CSS)
+  - Grid layouts work in most email clients with fallback behavior
+  - Export types for DigestMetrics, DigestDataPayload for reuse in other modules
+---
