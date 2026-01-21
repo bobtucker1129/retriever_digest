@@ -148,3 +148,16 @@ Thread: https://ampcode.com/threads/T-019bdeda-f485-713b-8ea3-bad6507eb80a
   - Success/error messages with setTimeout auto-clear provide good UX feedback
 
 ---
+
+## 2026-01-21 - US-011
+Thread: https://ampcode.com/threads/T-019bdedd-40ef-75f9-952a-90bc80181277
+- Created Recipients page with table showing Name, Email, Status, Actions columns
+- Added getRecipients server action with alphabetical sorting by name
+- Created RecipientsTable client component with empty state message
+- Status badge shows "Active" (green) or "Inactive" (gray) styling
+- Added responsive CSS styles for table with horizontal scroll on mobile
+- **Learnings for future iterations:**
+  - Follow existing pattern: page.tsx fetches data, passes to client component for display
+  - Use CSS pill/badge styling for status indicators with color coding
+
+---
