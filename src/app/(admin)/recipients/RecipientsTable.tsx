@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { RecipientData, addRecipient, updateRecipient, deleteRecipient } from './actions';
+import { RecipientData, addRecipient, updateRecipient, deleteRecipient, toggleRecipientActive } from './actions';
 
 type Props = {
   initialRecipients: RecipientData[];
@@ -18,6 +18,7 @@ export default function RecipientsTable({ initialRecipients }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingRecipient, setDeletingRecipient] = useState<RecipientData | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -123,6 +124,21 @@ export default function RecipientsTable({ initialRecipients }: Props) {
     }
   };
 
+  const handleToggleActive = async (recipient: RecipientData) => {
+    setTogglingId(recipient.id);
+    const result = await toggleRecipientActive(recipient.id);
+    setTogglingId(null);
+
+    if (result.success && result.active !== undefined) {
+      setRecipients(recipients.map((r) =>
+        r.id === recipient.id ? { ...r, active: result.active! } : r
+      ));
+    } else {
+      setError(result.error || 'Failed to toggle status');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   return (
     <>
       <div className="recipients-header">
@@ -153,9 +169,17 @@ export default function RecipientsTable({ initialRecipients }: Props) {
                   <td>{recipient.name}</td>
                   <td>{recipient.email}</td>
                   <td>
-                    <span className={`status-badge ${recipient.active ? 'active' : 'inactive'}`}>
-                      {recipient.active ? 'Active' : 'Inactive'}
-                    </span>
+                    <button
+                      className={`status-toggle ${recipient.active ? 'active' : 'inactive'} ${togglingId === recipient.id ? 'toggling' : ''}`}
+                      onClick={() => handleToggleActive(recipient)}
+                      disabled={togglingId === recipient.id}
+                      title={recipient.active ? 'Click to deactivate' : 'Click to activate'}
+                    >
+                      <span className="toggle-track">
+                        <span className="toggle-thumb" />
+                      </span>
+                      <span className="toggle-label">{recipient.active ? 'Active' : 'Inactive'}</span>
+                    </button>
                   </td>
                   <td>
                     <div className="actions-cell">

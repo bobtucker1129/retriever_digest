@@ -123,3 +123,27 @@ export async function deleteRecipient(id: string): Promise<DeleteRecipientResult
     return { success: false, error: 'Failed to delete recipient' };
   }
 }
+
+export type ToggleActiveResult = {
+  success: boolean;
+  error?: string;
+  active?: boolean;
+};
+
+export async function toggleRecipientActive(id: string): Promise<ToggleActiveResult> {
+  try {
+    const recipient = await prisma.recipient.findUnique({ where: { id } });
+    if (!recipient) {
+      return { success: false, error: 'Recipient not found' };
+    }
+
+    const updated = await prisma.recipient.update({
+      where: { id },
+      data: { active: !recipient.active },
+    });
+
+    return { success: true, active: updated.active };
+  } catch {
+    return { success: false, error: 'Failed to toggle recipient status' };
+  }
+}
