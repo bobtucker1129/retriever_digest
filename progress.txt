@@ -161,3 +161,18 @@ Thread: https://ampcode.com/threads/T-019bdedd-40ef-75f9-952a-90bc80181277
   - Use CSS pill/badge styling for status indicators with color coding
 
 ---
+
+## 2026-01-21 - US-012
+Thread: https://ampcode.com/threads/T-019bdede-fbee-720d-9763-002024a7c0c1
+- Added "Add Recipient" button above the recipients table
+- Created modal with Name and Email input fields
+- Added client-side and server-side email format validation
+- Added addRecipient server action that creates recipient with active: true
+- Table updates immediately without page reload (using local state)
+- Success message "Recipient added" shown with auto-clear after 3 seconds
+- **Learnings for future iterations:**
+  - Changed RecipientsTable prop from `recipients` to `initialRecipients` to manage state locally
+  - Use modal-overlay with stopPropagation to allow clicking outside to close modal
+  - Keep new recipients sorted alphabetically when adding to local state
+
+---
