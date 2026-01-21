@@ -1,3 +1,21 @@
 # Ralph Progress Log
 Started: Tue Jan 20 23:22:04 EST 2026
+
+## Codebase Patterns
+- Next.js 14 App Router with TypeScript in `src/app` directory
+- Run `npx tsc --noEmit` to typecheck
+
+---
+
+## 2026-01-20 - US-001
+Thread: https://ampcode.com/threads/T-019bdec9-e13c-74a8-9e57-bf55a5064abe
+- Initialized Next.js 14 project with TypeScript and App Router
+- Created src/app/layout.tsx and src/app/page.tsx
+- Added .env.example with placeholders for all required env vars
+- Added .gitignore for node_modules, .env, .next
+- Verified `npm run dev` works and typecheck passes
+- **Learnings for future iterations:**
+  - Create-next-app fails when directory has existing files; manually set up instead
+  - Next.js 14 with App Router uses `src/app` directory structure
+
 ---
