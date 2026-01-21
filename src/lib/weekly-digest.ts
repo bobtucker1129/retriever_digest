@@ -489,3 +489,56 @@ export function generateWeeklyDigestHTML(
 </html>
   `.trim();
 }
+
+export async function generateWeeklyDigest(recipientName: string): Promise<string> {
+  const weeklyData = await getWeeklyDigestData();
+  const goals = await prisma.goal.findMany();
+  const aiContent = await generateAIContent();
+
+  const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
+  const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
+
+  const defaultGoal = {
+    salesRevenue: 0,
+    salesCount: 0,
+    estimatesCreated: 0,
+    newCustomers: 0,
+  };
+
+  const monthly = monthlyGoal
+    ? {
+        salesRevenue: Number(monthlyGoal.salesRevenue),
+        salesCount: monthlyGoal.salesCount,
+        estimatesCreated: monthlyGoal.estimatesCreated,
+        newCustomers: monthlyGoal.newCustomers,
+      }
+    : defaultGoal;
+
+  const annual = annualGoal
+    ? {
+        salesRevenue: Number(annualGoal.salesRevenue),
+        salesCount: annualGoal.salesCount,
+        estimatesCreated: annualGoal.estimatesCreated,
+        newCustomers: annualGoal.newCustomers,
+      }
+    : defaultGoal;
+
+  if (!weeklyData) {
+    const today = new Date();
+    const emptyData: WeeklyDigestData = {
+      weekStartDate: today,
+      weekEndDate: today,
+      thisWeek: { revenue: 0, salesCount: 0, estimatesCreated: 0, newCustomers: 0 },
+      lastWeek: { revenue: 0, salesCount: 0, estimatesCreated: 0, newCustomers: 0 },
+      weekOverWeekChange: { revenueChange: 0, salesCountChange: 0, estimatesCreatedChange: 0, newCustomersChange: 0 },
+      pmWeeklyPerformance: [],
+      bdWeeklyPerformance: [],
+      monthToDate: { revenue: 0, salesCount: 0, estimatesCreated: 0, newCustomers: 0 },
+      yearToDate: { revenue: 0, salesCount: 0, estimatesCreated: 0, newCustomers: 0 },
+      topHighlights: [],
+    };
+    return generateWeeklyDigestHTML(recipientName, emptyData, monthly, annual, aiContent);
+  }
+
+  return generateWeeklyDigestHTML(recipientName, weeklyData, monthly, annual, aiContent);
+}
