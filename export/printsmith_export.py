@@ -204,6 +204,53 @@ def get_estimates_created(conn, target_date):
         raise
 
 
+def get_pm_open_invoices(conn):
+    """
+    Query open (pending) invoices grouped by PM (takenby field).
+    Returns list of PMs with their open invoice count and total dollars.
+    """
+    logger.info("Querying open invoices by PM...")
+    
+    valid_pms = ('Jim', 'Steve', 'Shelley', 'Ellie', 'Ellie Lemire')
+    
+    query = """
+        SELECT 
+            ib.takenby AS pm_name,
+            COUNT(*) AS open_count,
+            COALESCE(SUM(ib.adjustedamountdue), 0) AS open_total_dollars
+        FROM invoice i
+        JOIN invoicebase ib ON i.id = ib.id
+        WHERE i.onpendinglist = true
+          AND ib.isdeleted = false
+          AND ib.voided = false
+          AND ib.takenby IN %s
+        GROUP BY ib.takenby
+        ORDER BY open_total_dollars DESC
+    """
+    
+    pm_data = []
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (valid_pms,))
+            rows = cur.fetchall()
+            
+            for row in rows:
+                pm = {
+                    'pm_name': row[0],
+                    'open_count': row[1],
+                    'open_total_dollars': float(row[2]) if row[2] else 0.0
+                }
+                pm_data.append(pm)
+            
+            logger.info(f"Found open invoices for {len(pm_data)} PMs")
+            return pm_data
+            
+    except Exception as e:
+        logger.error(f"Error querying PM open invoices: {e}")
+        raise
+
+
 def main():
     """Main entry point for the export script."""
     logger.info("Starting PrintSmith export...")
@@ -219,6 +266,9 @@ def main():
         
         estimate_data = get_estimates_created(conn, target_date)
         logger.info(f"Estimate export: {estimate_data['estimate_count']} estimates created")
+        
+        pm_open_data = get_pm_open_invoices(conn)
+        logger.info(f"PM open invoices: {len(pm_open_data)} PMs with open invoices")
         
         logger.info("Export completed successfully")
         
