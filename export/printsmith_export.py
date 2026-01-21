@@ -7,7 +7,8 @@ Connects to PrintSmith PostgreSQL database and exports sales data for Retriever 
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from decimal import Decimal
 
 import psycopg2
 from psycopg2 import OperationalError, DatabaseError
@@ -44,6 +45,26 @@ def get_connection_config():
     }
 
 
+def get_target_date():
+    """
+    Get the target date for export.
+    Returns yesterday's date, but if yesterday was Saturday or Sunday, returns Friday.
+    """
+    today = datetime.now().date()
+    yesterday = today - timedelta(days=1)
+    
+    weekday = yesterday.weekday()
+    if weekday == 5:  # Saturday
+        target = yesterday - timedelta(days=1)  # Friday
+    elif weekday == 6:  # Sunday
+        target = yesterday - timedelta(days=2)  # Friday
+    else:
+        target = yesterday
+    
+    logger.info(f"Target date for export: {target}")
+    return target
+
+
 def connect_to_printsmith():
     """Establish connection to PrintSmith PostgreSQL database."""
     logger.info("Connecting to PrintSmith database...")
@@ -71,6 +92,68 @@ def connect_to_printsmith():
         raise
 
 
+def get_completed_invoices(conn, target_date):
+    """
+    Query yesterday's completed (posted) invoices.
+    Returns list of invoices and calculated totals.
+    """
+    logger.info(f"Querying completed invoices for {target_date}...")
+    
+    query = """
+        SELECT 
+            i.invoicenumber,
+            ib.accountname AS account_name,
+            ib.takenby,
+            ib.salesrep,
+            ib.adjustedamountdue,
+            ib.weborderexternalid,
+            ib.description AS job_description
+        FROM invoice i
+        JOIN invoicebase ib ON i.id = ib.id
+        WHERE DATE(i.pickupdate) = %s
+          AND i.onpendinglist = false
+          AND ib.isdeleted = false
+          AND ib.voided = false
+        ORDER BY ib.adjustedamountdue DESC
+    """
+    
+    invoices = []
+    total_revenue = Decimal('0.00')
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (target_date,))
+            rows = cur.fetchall()
+            
+            for row in rows:
+                invoice = {
+                    'invoicenumber': row[0],
+                    'account_name': row[1],
+                    'takenby': row[2],
+                    'salesrep': row[3],
+                    'adjustedamountdue': float(row[4]) if row[4] else 0.0,
+                    'weborderexternalid': row[5],
+                    'job_description': row[6]
+                }
+                invoices.append(invoice)
+                if row[4]:
+                    total_revenue += Decimal(str(row[4]))
+            
+            invoice_count = len(invoices)
+            logger.info(f"Found {invoice_count} completed invoices")
+            logger.info(f"Total revenue: ${total_revenue:,.2f}")
+            
+            return {
+                'invoices': invoices,
+                'total_revenue': float(total_revenue),
+                'invoice_count': invoice_count
+            }
+            
+    except Exception as e:
+        logger.error(f"Error querying invoices: {e}")
+        raise
+
+
 def main():
     """Main entry point for the export script."""
     logger.info("Starting PrintSmith export...")
@@ -79,8 +162,11 @@ def main():
     conn = None
     try:
         conn = connect_to_printsmith()
+        target_date = get_target_date()
         
-        # Future: Add data export functions here
+        invoice_data = get_completed_invoices(conn, target_date)
+        logger.info(f"Invoice export: {invoice_data['invoice_count']} invoices, ${invoice_data['total_revenue']:,.2f} revenue")
+        
         logger.info("Export completed successfully")
         
     except Exception as e:
