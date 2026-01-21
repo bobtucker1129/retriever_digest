@@ -10,6 +10,8 @@ Started: Tue Jan 20 23:22:04 EST 2026
 - Use `IF NOT EXISTS` in migration SQL for idempotency
 - Prisma 7 requires driver adapter: `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })`
 - Import PrismaClient from `src/generated/prisma/client` (not the folder directly)
+- Use route groups `(admin)` and `(auth)` to separate layouts - admin has header/nav, auth is minimal
+- Session cookie name: `retriever_session`, expires 7 days
 
 ---
 
@@ -99,5 +101,20 @@ Thread: https://ampcode.com/threads/T-019bded2-f46e-751b-aac2-3714e4c0a8c2
   - Use `'use client'` directive for components using Next.js hooks like usePathname
   - Inline SVG logos avoid external asset dependencies and bundle well
   - CSS variables in :root scope for consistent theming across components
+
+---
+
+## 2026-01-21 - US-008
+Thread: https://ampcode.com/threads/T-019bded4-ab92-72c6-85b1-49574f458e69
+- Added password protection middleware using Next.js middleware.ts
+- Created /login page with password input and styled form
+- Created /api/auth/login API endpoint that validates password and sets session cookie
+- Restructured routes using route groups: (admin) for protected pages, (auth) for login
+- Session cookie expires after 7 days, uses httpOnly and secure flags in production
+- Public paths: /login, /api/auth/login, /api/export (no auth required)
+- **Learnings for future iterations:**
+  - Route groups (parentheses) allow different layouts without affecting URL structure
+  - middleware.ts at src/ level intercepts all routes for auth checks
+  - Clear .next cache with `rm -rf .next` when restructuring routes
 
 ---
