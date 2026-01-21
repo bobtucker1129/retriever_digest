@@ -401,3 +401,26 @@ Thread: https://ampcode.com/threads/T-019bdef5-58a3-77b3-b584-0b6c2da907e3
   - Use custom response headers (X-Mock-Data) to communicate metadata from API to client
   - Preview API endpoints can return HTML directly with NextResponse(html, { headers: { 'Content-Type': 'text/html' } })
 ---
+
+## 2026-01-21 - US-041
+Thread: https://ampcode.com/threads/T-019bdef7-ba37-746f-aae7-c98027530ab4
+- Verified `/api/preview/daily` endpoint already exists from US-040
+- Endpoint returns HTML with Content-Type: text/html, uses "Preview User" as recipient name
+- Protected by session auth via middleware (not in PUBLIC_PATHS)
+- All acceptance criteria already met
+- **Learnings for future iterations:**
+  - Preview endpoints are protected by middleware by default (not in PUBLIC_PATHS)
+
+---
+
+## 2026-01-21 - US-042
+Thread: https://ampcode.com/threads/T-019bdef7-ba37-746f-aae7-c98027530ab4
+- Added test email form to Testing page with email input and "Send Test" button
+- Created POST `/api/test-email` endpoint to send test digests
+- Client-side and server-side email validation
+- Shows success/error messages after send attempt
+- Added CSS styles for test email form (.test-email-form, .test-email-input, .success-message)
+- **Learnings for future iterations:**
+  - Reuse generateDailyDigestWithMockFallback for both preview and test email
+  - Add "(TEST)" suffix to test email subjects to distinguish from real digests
+---
