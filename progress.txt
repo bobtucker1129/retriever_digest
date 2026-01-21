@@ -50,3 +50,13 @@ Thread: https://ampcode.com/threads/T-019bdecc-e470-75d8-bf72-0749e9bed927
   - Use `CREATE TABLE IF NOT EXISTS` and `CREATE TYPE` for idempotent migrations
 
 ---
+
+## 2026-01-21 - US-004
+Thread: https://ampcode.com/threads/T-019bdece-2f4a-742e-b442-122adee1ceb5
+- Created Recipient model with fields: id, name, email (unique), active (default true), createdAt, updatedAt
+- Created migration file in prisma/migrations/20260121000001_add_recipient_model/
+- Regenerated Prisma client with Recipient model types
+- **Learnings for future iterations:**
+  - Follow same pattern as Goal migration: use `IF NOT EXISTS` for tables and indexes
+
+---
