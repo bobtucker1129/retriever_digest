@@ -440,3 +440,23 @@ Thread: https://ampcode.com/threads/T-019bdef9-b31f-7271-9627-3f2abb1a3bb2
   - Week boundaries: getDay() returns 0 for Sunday, so adjust accordingly
   - Aggregate performance data using Map for O(n) efficiency
 ---
+
+## 2026-01-21 - US-044
+Thread: https://ampcode.com/threads/T-019bdefb-24f1-763e-b5ea-64d2793696ae
+- Created weekly digest HTML template with celebratory purple theme
+- Added `generateWeeklyDigestHTML()` function in weekly-digest.ts
+- Header section: "Retriever Weekly Digest" with week date range and Retriever logo
+- "This Week's Wins" section: total revenue, orders, estimates, new customers in 2x2 grid + top highlights
+- "Week over Week" section: comparison table with up/down arrows and percentage changes
+- PM Weekly Stats section: orders completed and revenue by PM
+- BD Weekly Stats section: orders completed and revenue by BD
+- Monthly Progress section with color-coded progress bars
+- Annual Progress section with color-coded progress bars
+- AI quote/joke at bottom with styled callout
+- Celebratory tone: "What a week!", "Crushing it!" in greeting
+- Helper functions: formatCurrency, formatNumber, formatWeekRange, renderChangeIndicator, renderProgressBar, renderAIContent
+- **Learnings for future iterations:**
+  - Weekly template uses purple gradient (#7c3aed to #a855f7) to differentiate from daily (blue)
+  - Use Date.toLocaleDateString with options for week range formatting
+  - Export PerformanceData type for use in other modules
+---
