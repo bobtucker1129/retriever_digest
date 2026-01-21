@@ -12,3 +12,19 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum GoalType {
+  MONTHLY
+  ANNUAL
+}
+
+model Goal {
+  id               String   @id @default(cuid())
+  type             GoalType @unique
+  salesRevenue     Decimal  @db.Decimal(12, 2)
+  salesCount       Int
+  estimatesCreated Int
+  newCustomers     Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
