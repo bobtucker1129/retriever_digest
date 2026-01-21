@@ -12,6 +12,8 @@ Started: Tue Jan 20 23:22:04 EST 2026
 - Import PrismaClient from `src/generated/prisma/client` (not the folder directly)
 - Use route groups `(admin)` and `(auth)` to separate layouts - admin has header/nav, auth is minimal
 - Session cookie name: `retriever_session`, expires 7 days
+- Use `export const dynamic = 'force-dynamic'` for pages with DB queries to avoid SSG build errors
+- Install @prisma/client in addition to prisma dev dependency for runtime
 
 ---
 
@@ -116,5 +118,20 @@ Thread: https://ampcode.com/threads/T-019bded4-ab92-72c6-85b1-49574f458e69
   - Route groups (parentheses) allow different layouts without affecting URL structure
   - middleware.ts at src/ level intercepts all routes for auth checks
   - Clear .next cache with `rm -rf .next` when restructuring routes
+
+---
+
+## 2026-01-21 - US-009
+Thread: https://ampcode.com/threads/T-019bded8-b1c3-7663-8ed9-609bd0f3536b
+- Created Goals page with Monthly and Annual goal forms
+- Added GoalForm component with labeled input fields for all 4 metrics
+- Created server action getGoals() to fetch existing goals from database
+- Created centralized Prisma client utility in src/lib/db.ts
+- Added responsive CSS styling for goals grid layout
+- Fixed Prisma build error by installing @prisma/client runtime package
+- **Learnings for future iterations:**
+  - Prisma 7 needs both `prisma` (dev) and `@prisma/client` (runtime) packages
+  - Pages that fetch from database at render time need `export const dynamic = 'force-dynamic'`
+  - Export types from actions.ts for use in UI components
 
 ---
