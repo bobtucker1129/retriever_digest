@@ -154,6 +154,56 @@ def get_completed_invoices(conn, target_date):
         raise
 
 
+def get_estimates_created(conn, target_date):
+    """
+    Query yesterday's created estimates.
+    Returns estimate count and list of top estimates by amount.
+    """
+    logger.info(f"Querying estimates created on {target_date}...")
+    
+    query = """
+        SELECT 
+            e.estimatenumber AS invoicenumber,
+            ib.accountname AS account_name,
+            ib.takenby,
+            ib.adjustedamountdue
+        FROM estimate e
+        JOIN invoicebase ib ON e.id = ib.id
+        WHERE DATE(ib.ordereddate) = %s
+          AND ib.isdeleted = false
+          AND ib.voided = false
+        ORDER BY ib.adjustedamountdue DESC
+    """
+    
+    estimates = []
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (target_date,))
+            rows = cur.fetchall()
+            
+            for row in rows:
+                estimate = {
+                    'invoicenumber': row[0],
+                    'account_name': row[1],
+                    'takenby': row[2],
+                    'adjustedamountdue': float(row[3]) if row[3] else 0.0
+                }
+                estimates.append(estimate)
+            
+            estimate_count = len(estimates)
+            logger.info(f"Found {estimate_count} estimates created")
+            
+            return {
+                'estimate_count': estimate_count,
+                'top_estimates': estimates[:10]  # Return top 10 by amount
+            }
+            
+    except Exception as e:
+        logger.error(f"Error querying estimates: {e}")
+        raise
+
+
 def main():
     """Main entry point for the export script."""
     logger.info("Starting PrintSmith export...")
@@ -166,6 +216,9 @@ def main():
         
         invoice_data = get_completed_invoices(conn, target_date)
         logger.info(f"Invoice export: {invoice_data['invoice_count']} invoices, ${invoice_data['total_revenue']:,.2f} revenue")
+        
+        estimate_data = get_estimates_created(conn, target_date)
+        logger.info(f"Estimate export: {estimate_data['estimate_count']} estimates created")
         
         logger.info("Export completed successfully")
         
