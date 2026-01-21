@@ -386,3 +386,18 @@ Thread: https://ampcode.com/threads/T-019bdef4-34f1-725e-888e-7ad06bcc119c
   - API routes with custom auth (like cron secrets) must be added to PUBLIC_PATHS in middleware
   - Use startsWith matching in PUBLIC_PATHS to cover all sub-routes under a prefix
 ---
+
+## 2026-01-21 - US-040
+Thread: https://ampcode.com/threads/T-019bdef5-58a3-77b3-b584-0b6c2da907e3
+- Created Testing page with "Preview Daily Digest" button
+- Added preview-container with iframe to render digest HTML
+- Created `/api/preview/daily` endpoint that returns HTML with Content-Type: text/html
+- Added `generateDailyDigestWithMockFallback()` function that uses mock data when no DigestData exists
+- Warning banner displays when using mock data (via X-Mock-Data response header)
+- Loading state shown during fetch
+- Added CSS styles for testing page: preview-button, preview-container, preview-iframe, warning-banner
+- **Learnings for future iterations:**
+  - Use `srcDoc` prop on iframe to render HTML string directly instead of `src` URL
+  - Use custom response headers (X-Mock-Data) to communicate metadata from API to client
+  - Preview API endpoints can return HTML directly with NextResponse(html, { headers: { 'Content-Type': 'text/html' } })
+---
