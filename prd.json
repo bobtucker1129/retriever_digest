@@ -1,0 +1,811 @@
+{
+  "project": "Retriever Daily Digest",
+  "branchName": "ralph/retriever-daily-digest",
+  "description": "Internal sales motivation tool for BooneGraphics - extracts data from PrintSmith Vision and delivers daily/weekly email digests with sales metrics, goal progress, and AI insights",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Initialize Next.js project with TypeScript",
+      "description": "As a developer, I need a properly configured Next.js project so we have a foundation to build on.",
+      "acceptanceCriteria": [
+        "Create Next.js 14+ app with App Router and TypeScript",
+        "Project runs with `npm run dev`",
+        "Add `.env.example` with placeholder variables for all required env vars",
+        "Add `.gitignore` for node_modules, .env, .next",
+        "Typecheck passes (`npx tsc --noEmit`)"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Set up Prisma with PostgreSQL connection",
+      "description": "As a developer, I need database connectivity so we can persist goals and recipients.",
+      "acceptanceCriteria": [
+        "Install Prisma as dev dependency",
+        "Initialize Prisma with PostgreSQL provider",
+        "Add DATABASE_URL to `.env.example`",
+        "Prisma schema file exists at `prisma/schema.prisma`",
+        "`npx prisma generate` runs without error",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create Goal model and migration",
+      "description": "As a developer, I need to store sales goals in the database.",
+      "acceptanceCriteria": [
+        "Goal model has fields: `id`, `type` (enum: MONTHLY, ANNUAL), `salesRevenue` (Decimal), `salesCount` (Int), `estimatesCreated` (Int), `newCustomers` (Int), `createdAt`, `updatedAt`",
+        "Only one record per type (upsert pattern)",
+        "Migration generates and applies successfully",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create Recipient model and migration",
+      "description": "As a developer, I need to store email recipients in the database.",
+      "acceptanceCriteria": [
+        "Recipient model has fields: `id`, `name` (String), `email` (String, unique), `active` (Boolean, default true), `createdAt`, `updatedAt`",
+        "Migration generates and applies successfully",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create DigestData model for cached export data",
+      "description": "As a developer, I need to store the nightly data export from PrintSmith.",
+      "acceptanceCriteria": [
+        "DigestData model has fields: `id`, `exportDate` (DateTime, unique), `data` (Json), `createdAt`",
+        "JSON field stores all metrics, highlights, AI insights from export",
+        "Migration generates and applies successfully",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create database seed script",
+      "description": "As a developer, I need sample data for local development and testing.",
+      "acceptanceCriteria": [
+        "Create `prisma/seed.ts` with sample data",
+        "Seed creates one MONTHLY goal and one ANNUAL goal with realistic values",
+        "Seed creates 3 sample recipients (mix of active/inactive)",
+        "Seed creates sample DigestData with mock metrics",
+        "Add seed script to `package.json`: `\"prisma:seed\": \"npx prisma db seed\"`",
+        "Configure `prisma` in package.json to use seed script",
+        "Running `npm run prisma:seed` populates database without error",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create admin layout with navigation tabs",
+      "description": "As an admin, I need a portal with tabs so I can navigate between Goals, Recipients, and Testing.",
+      "acceptanceCriteria": [
+        "Root layout has header with \"Retriever Daily Digest\" title and Retriever logo",
+        "Three tabs visible: \"Goals\", \"Recipients\", \"Testing\"",
+        "Clicking each tab navigates to `/goals`, `/recipients`, `/testing`",
+        "Active tab is visually highlighted",
+        "Layout is responsive (works on mobile and desktop)",
+        "Typecheck passes",
+        "Start dev server with `npm run dev`, verify running on `http://localhost:3000`",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add password protection middleware",
+      "description": "As an admin, I need the portal protected so only authorized users can access it.",
+      "acceptanceCriteria": [
+        "Environment variable `ADMIN_PASSWORD` stores the password",
+        "`/login` page has password input and submit button",
+        "Submitting correct password sets a session cookie and redirects to `/goals`",
+        "Submitting wrong password shows error message \"Invalid password\"",
+        "All routes except `/login` and `/api/export` redirect to `/login` if no valid session",
+        "Session cookie expires after 7 days",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Display Goals page with Monthly and Annual forms",
+      "description": "As an admin, I want to see and set sales goals so we can track progress.",
+      "acceptanceCriteria": [
+        "Goals page has two sections: \"Monthly Goals\" and \"Annual Goals\"",
+        "Each section has 4 labeled input fields: Sales Revenue ($), Sales Count, Estimates Created, New Customers",
+        "Revenue field accepts decimal input (e.g., 500000.00)",
+        "Count fields accept integer input only",
+        "Page loads existing goal values from database (if any)",
+        "Empty state shows 0 for all fields",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Save goals to database",
+      "description": "As an admin, I want to save goals so they persist and are used in digests.",
+      "acceptanceCriteria": [
+        "Each section (Monthly, Annual) has a \"Save\" button",
+        "Clicking Save sends data to API and upserts goal record",
+        "Success toast/message shows \"Goals saved successfully\"",
+        "Error toast shows if save fails",
+        "Form retains values after save (no flash/reset)",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Display Recipients list",
+      "description": "As an admin, I want to see all recipients so I know who gets the digest.",
+      "acceptanceCriteria": [
+        "Recipients page shows a table with columns: Name, Email, Status, Actions",
+        "Status shows \"Active\" (green) or \"Inactive\" (gray)",
+        "Empty state shows \"No recipients yet. Add one to get started.\"",
+        "Recipients sorted alphabetically by name",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add new recipient",
+      "description": "As an admin, I want to add recipients so they receive digests.",
+      "acceptanceCriteria": [
+        "\"Add Recipient\" button visible above table",
+        "Clicking opens modal/form with Name and Email fields",
+        "Email field validates format (shows error for invalid email)",
+        "Submitting adds recipient to database with `active: true`",
+        "Table updates to show new recipient without page reload",
+        "Success message shows \"Recipient added\"",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Edit recipient",
+      "description": "As an admin, I want to edit recipients so I can fix typos or update info.",
+      "acceptanceCriteria": [
+        "Each row has an \"Edit\" button in Actions column",
+        "Clicking Edit opens modal with current Name and Email pre-filled",
+        "Saving updates the database record",
+        "Table updates to show changes without page reload",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Delete recipient",
+      "description": "As an admin, I want to delete recipients who should no longer receive digests.",
+      "acceptanceCriteria": [
+        "Each row has a \"Delete\" button in Actions column",
+        "Clicking Delete shows confirmation dialog: \"Delete [name]? This cannot be undone.\"",
+        "Confirming deletes the record from database",
+        "Table updates without page reload",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Toggle recipient active status",
+      "description": "As an admin, I want to pause recipients without deleting them.",
+      "acceptanceCriteria": [
+        "Status column has a toggle switch (or clickable badge)",
+        "Clicking toggles `active` boolean in database immediately",
+        "Visual state updates without page reload",
+        "Inactive recipients will not receive digests (noted in UI)",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Create Python export script foundation",
+      "description": "As a developer, I need a Python script that connects to PrintSmith and exports data.",
+      "acceptanceCriteria": [
+        "Create `export/printsmith_export.py` script",
+        "Script uses `psycopg2` to connect to PrintSmith PostgreSQL",
+        "Connection details read from environment variables: `PRINTSMITH_HOST`, `PRINTSMITH_PORT`, `PRINTSMITH_DB`, `PRINTSMITH_USER`, `PRINTSMITH_PASSWORD`",
+        "Script has error handling for connection failures",
+        "Script logs progress to console",
+        "Create `export/requirements.txt` with `psycopg2-binary` and `requests`",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Export yesterday's completed invoices",
+      "description": "As a developer, I need yesterday's posted invoices for the daily digest.",
+      "acceptanceCriteria": [
+        "Query `invoice` JOIN `invoicebase` WHERE `pickupdate` = yesterday AND `onpendinglist = false`",
+        "Apply standard filter: `isdeleted = false`, `voided = false`",
+        "Return list of invoices with: invoicenumber, account_name, takenby (PM), salesrep (BD), adjustedamountdue, weborderexternalid, job_description",
+        "Calculate totals: `total_revenue`, `invoice_count`",
+        "Handle weekends: if yesterday was Saturday/Sunday, adjust to Friday",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Export yesterday's estimates created",
+      "description": "As a developer, I need yesterday's new estimates for the daily digest.",
+      "acceptanceCriteria": [
+        "Query `estimate` JOIN `invoicebase` WHERE DATE(`ordereddate`) = yesterday",
+        "Apply filter: `isdeleted = false`, `voided = false`",
+        "Return: `estimate_count`, list of top estimates (by amount) with invoicenumber, account_name, takenby, adjustedamountdue",
+        "Handle weekends: if yesterday was Saturday/Sunday, adjust to Friday",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Export PM open invoices table",
+      "description": "As a developer, I need open invoices grouped by PM for the digest tables.",
+      "acceptanceCriteria": [
+        "Query pending invoices (`onpendinglist = true`) grouped by `takenby`",
+        "Filter to valid PMs: 'Jim', 'Steve', 'Shelley', 'Ellie', 'Ellie Lemire'",
+        "For each PM return: `pm_name`, `open_count`, `open_total_dollars`",
+        "Sort by `open_total_dollars` descending",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Export BD open invoices table",
+      "description": "As a developer, I need open invoices grouped by BD for the digest tables.",
+      "acceptanceCriteria": [
+        "Query pending invoices (`onpendinglist = true`) joined with `salesrep`",
+        "Filter to valid BDs: 'House', 'Paige Chamberlain', 'Sean Swaim', 'Mike Meyer', 'Dave Tanner', 'Rob Grayson', 'Robert Galle'",
+        "For each BD return: `bd_name`, `open_count`, `open_total_dollars`",
+        "Sort by `open_total_dollars` descending",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Export MTD sales metrics",
+      "description": "As a developer, I need month-to-date totals for goal progress.",
+      "acceptanceCriteria": [
+        "Query completed invoices where `pickupdate` >= first of current month AND <= today",
+        "Calculate: `revenue` (SUM of adjustedamountdue), `sales_count` (COUNT)",
+        "Query estimates created this month: `estimates_created` (COUNT from estimate table)",
+        "Query new customers (accounts with first-ever invoice this month): `new_customers` (COUNT)",
+        "Return object: `{ revenue, sales_count, estimates_created, new_customers }`",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Export YTD sales metrics",
+      "description": "As a developer, I need year-to-date totals for annual goal progress.",
+      "acceptanceCriteria": [
+        "Query completed invoices where `pickupdate` >= Jan 1 current year AND <= today",
+        "Calculate: `revenue` (SUM), `sales_count` (COUNT)",
+        "Query estimates created this year: `estimates_created` (COUNT)",
+        "Query new customers this year: `new_customers` (COUNT)",
+        "Return object: `{ revenue, sales_count, estimates_created, new_customers }`",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Export daily highlights (3 invoices + 3 estimates)",
+      "description": "As a developer, I need interesting highlights to feature in the digest.",
+      "acceptanceCriteria": [
+        "Select 3 invoices from yesterday with variety: largest dollar, a web order (if any), a new customer order (if any)",
+        "Select 3 estimates from yesterday with variety: largest dollar, interesting mix",
+        "For each highlight include: invoicenumber, account_name, amount, pm, bd, job_description, highlight_reason (e.g., \"Largest order\", \"New customer\", \"Web order\")",
+        "Fallback: if not enough variety, fill remaining slots with next largest by dollar",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Export AI insights - Anniversary reorders",
+      "description": "As a developer, I need to identify large orders from 10-11 months ago for follow-up.",
+      "acceptanceCriteria": [
+        "Query completed invoices where `pickupdate` BETWEEN 11 months ago AND 10 months ago",
+        "Filter to `adjustedamountdue >= 2000`",
+        "Return top 5 by dollar amount with: invoicenumber, pickupdate, account_name, amount, job_description, bd",
+        "Include message: \"These customers may need the same job again this year!\"",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Export AI insights - Lapsed accounts",
+      "description": "As a developer, I need to identify high-value accounts that have gone quiet.",
+      "acceptanceCriteria": [
+        "Find accounts with lifetime value >= $5,000 but no orders in last 6 months",
+        "Return top 5 by lifetime value with: accountid, account_name, last_order_date, lifetime_value, order_count, bd",
+        "Include message: \"Time for a check-in call!\"",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Export AI insights - Past due accounts",
+      "description": "As a developer, I need to identify accounts with AR aging issues.",
+      "acceptanceCriteria": [
+        "Query accounts where `balance30day > 0` OR `balance60day > 0` OR `balance90day > 0`",
+        "Calculate `past_due_total` = sum of 30/60/90 day buckets",
+        "Return top 5 by past_due_total with: accountid, account_name, total_balance, past_due_amount, bd",
+        "Include message: \"Friendly payment reminder needed!\"",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Export AI insights - Hot streak accounts",
+      "description": "As a developer, I need to identify accounts increasing their order frequency.",
+      "acceptanceCriteria": [
+        "Compare order count: last 3 months vs prior 3 months",
+        "Find accounts where recent_count > prior_count AND recent_spend >= $1,000",
+        "Return top 5 by order increase with: accountid, account_name, recent_orders, prior_orders, recent_spend, bd",
+        "Include message: \"Nurture these growing relationships!\"",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Export AI insights - High-value pending estimates",
+      "description": "As a developer, I need to identify big quotes that need follow-up.",
+      "acceptanceCriteria": [
+        "Query pending estimates (`onpendinglist = true`) with `adjustedamountdue >= 1000`",
+        "Return top 5 by dollar amount with: estimate_number, account_name, amount, created_date, job_description, pm, bd",
+        "Include message: \"Follow up to close the deal!\"",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Assemble and POST export data to API",
+      "description": "As a developer, I need the script to compile all data and send to Render.",
+      "acceptanceCriteria": [
+        "Script assembles all exported data into single JSON object with structure: export_date, yesterday_invoices, yesterday_estimates, pm_table, bd_table, mtd_metrics, ytd_metrics, highlights, ai_insights",
+        "POST to Render API endpoint with secret header: `X-Export-Secret`",
+        "Log success/failure with response code",
+        "Environment variable `RENDER_API_URL` for endpoint",
+        "Environment variable `EXPORT_SECRET` for auth header",
+        "Script runs without syntax errors: `python3 -m py_compile export/printsmith_export.py`",
+        "Dry run mode: `python3 export/printsmith_export.py --dry-run` prints JSON without POSTing"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Create API endpoint to receive export data",
+      "description": "As a developer, I need an endpoint to receive the nightly PrintSmith export.",
+      "acceptanceCriteria": [
+        "POST `/api/export` accepts JSON body",
+        "Requires header `X-Export-Secret` matching env var `EXPORT_SECRET`",
+        "Returns 401 if secret missing/invalid",
+        "Validates JSON structure (basic shape validation)",
+        "Stores data in DigestData table with today's date",
+        "Returns 200 with `{ success: true, date: \"2026-01-21\" }`",
+        "If data for today already exists, update instead of create (upsert)",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Create mock data fallback for development",
+      "description": "As a developer, I need the app to work without PrintSmith data during development.",
+      "acceptanceCriteria": [
+        "Create `lib/mock-digest-data.ts` with realistic sample data",
+        "Mock data matches exact structure of export JSON",
+        "All digest data fetch functions check for DigestData in database first",
+        "If no data found for today, return mock data",
+        "Console log warning: \"Using mock digest data - no export received today\"",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Calculate goal progress percentages",
+      "description": "As a developer, I need to show how close we are to goals.",
+      "acceptanceCriteria": [
+        "Function takes MTD metrics + Monthly goals, returns percentage for each metric",
+        "Function takes YTD metrics + Annual goals, returns percentage for each metric",
+        "Calculate: `percentage = (current / goal) * 100`",
+        "Returns 0% if goal is 0 (avoid division by zero)",
+        "Percentages can exceed 100% (e.g., 150% if exceeded)",
+        "Return object: `{ revenue_pct, sales_count_pct, estimates_pct, new_customers_pct }`",
+        "Typecheck passes"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Create daily digest data aggregator",
+      "description": "As a developer, I need one function that assembles all daily data.",
+      "acceptanceCriteria": [
+        "Function `getDailyDigestData()` fetches latest DigestData from database",
+        "Fetches goals from database",
+        "Calculates goal progress percentages",
+        "Returns complete object with all sections needed for email template",
+        "Includes formatted date string (e.g., \"Monday, January 20, 2026\")",
+        "Typecheck passes"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Create daily digest HTML template",
+      "description": "As a developer, I need an email-safe HTML template for the daily digest.",
+      "acceptanceCriteria": [
+        "Template uses inline CSS (email-safe, no external stylesheets)",
+        "Header with Retriever logo (https://www.booneproofs.net/email/Retriever_Logo.svg) and \"Retriever Daily Digest\"",
+        "Personalized greeting: \"Good Morning, [Name]!\"",
+        "Section: \"Yesterday's Highlights\" with 3 invoices and 3 estimates (cards with reason badge)",
+        "Section: \"Yesterday's Numbers\" - total revenue, invoice count, estimate count",
+        "Section: \"PM Workload\" table - PM name, open count, open total",
+        "Section: \"BD Workload\" table - BD name, open count, open total",
+        "Section: \"Monthly Progress\" with progress bars for each goal metric",
+        "Section: \"Annual Progress\" with progress bars for each goal metric",
+        "Section: \"AI Insights\" - randomly select 1-2 insights to feature with action-oriented messaging",
+        "Section: Quote/joke placeholder at bottom",
+        "Positive, celebratory tone (green colors, checkmarks, encouraging language)",
+        "Template renders correctly in Gmail, Outlook",
+        "Typecheck passes"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Integrate Anthropic for inspirational content",
+      "description": "As a developer, I need AI-generated quotes or jokes for each digest.",
+      "acceptanceCriteria": [
+        "Environment variable `ANTHROPIC_API_KEY`",
+        "Function randomly chooses content type: inspirational quote, clean joke, historical \"this day in history\" fact, or fun industry trivia",
+        "Prompt specifies: sales/business/printing theme, keep it short (1-2 sentences), appropriate for workplace",
+        "Returns object: `{ type: string, content: string, attribution?: string }`",
+        "Falls back to hardcoded content array if API fails",
+        "Typecheck passes"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Assemble complete daily digest",
+      "description": "As a developer, I need to combine data + template + AI content into final HTML.",
+      "acceptanceCriteria": [
+        "Function `generateDailyDigest(recipientName: string)` returns complete HTML string",
+        "All placeholder values replaced with real data",
+        "AI quote/joke inserted at bottom with appropriate styling",
+        "Numbers formatted with commas and currency symbols",
+        "Progress percentages shown with visual bars",
+        "Typecheck passes"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "Set up Resend integration",
+      "description": "As a developer, I need to send emails via Resend.",
+      "acceptanceCriteria": [
+        "Install Resend SDK",
+        "Environment variable `RESEND_API_KEY`",
+        "Environment variable `EMAIL_FROM` (e.g., \"Retriever <digest@boonegraphics.com>\")",
+        "Utility function sends email with: to, subject, html",
+        "Returns success/failure status",
+        "Typecheck passes"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Create send daily digest function",
+      "description": "As a developer, I need to send the daily digest to all active recipients.",
+      "acceptanceCriteria": [
+        "Function fetches all recipients where `active: true`",
+        "Generates personalized daily digest HTML for each recipient",
+        "Sends email to each recipient with subject: \"🐕 Retriever Daily Digest - [Date]\"",
+        "Logs success/failure for each recipient",
+        "Returns summary: `{ sent: number, failed: number, errors: string[] }`",
+        "Typecheck passes"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Add API endpoint for daily digest",
+      "description": "As a developer, I need an endpoint to trigger the daily digest.",
+      "acceptanceCriteria": [
+        "POST `/api/digest/daily` triggers digest generation and send",
+        "Requires secret header `X-Cron-Secret` matching env var `CRON_SECRET`",
+        "Returns JSON: `{ success: boolean, sent: number, failed: number }`",
+        "Returns 401 if secret header missing/invalid",
+        "Returns 400 if no digest data available for today",
+        "Typecheck passes"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Create Testing page with daily preview",
+      "description": "As an admin, I want to preview the daily digest in my browser without sending emails.",
+      "acceptanceCriteria": [
+        "Testing page has \"Preview Daily Digest\" button",
+        "Clicking fetches digest HTML from preview API",
+        "Digest renders in an iframe below the button",
+        "If no export data, show sample/mock data with warning banner",
+        "Loading state while fetching",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Add preview API endpoint",
+      "description": "As a developer, I need an endpoint that returns digest HTML for preview.",
+      "acceptanceCriteria": [
+        "GET `/api/preview/daily` returns HTML string (not JSON)",
+        "Protected by session auth (same as admin portal)",
+        "Uses \"Preview User\" as recipient name",
+        "Content-Type header set to `text/html`",
+        "Typecheck passes"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "Add send test email button",
+      "description": "As an admin, I want to send a test digest to myself.",
+      "acceptanceCriteria": [
+        "Testing page has email input field and \"Send Test\" button",
+        "Clicking sends digest to entered email address",
+        "Shows success/error message",
+        "Does not affect regular recipient list",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-043",
+      "title": "Create weekly digest data aggregator",
+      "description": "As a developer, I need aggregated data for the full week.",
+      "acceptanceCriteria": [
+        "Function `getWeeklyDigestData()` returns: this week totals (Mon-Fri), last week totals, week-over-week change percentages",
+        "Week defined as Monday 00:00 to Friday 23:59 (business week)",
+        "Aggregates from daily DigestData records for the week",
+        "Includes all 4 metrics: revenue, sales count, estimates, new customers",
+        "Includes BD/PM weekly performance summaries",
+        "Typecheck passes"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-044",
+      "title": "Create weekly digest HTML template",
+      "description": "As a developer, I need an email template for the weekly summary.",
+      "acceptanceCriteria": [
+        "Header: \"Retriever Weekly Digest\" with week date range and logo",
+        "Section: \"This Week's Wins\" with total revenue, order count, top highlights",
+        "Section: \"Week over Week\" showing change with up/down arrows and percentages",
+        "Section: \"PM Weekly Stats\" - orders completed, revenue by PM",
+        "Section: \"BD Weekly Stats\" - orders completed, revenue by BD",
+        "Section: \"Monthly Progress\" (same as daily)",
+        "Section: \"Annual Progress\" (same as daily)",
+        "AI quote/joke at bottom",
+        "More celebratory tone than daily (\"What a week!\", \"Crushing it!\")",
+        "Typecheck passes"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-045",
+      "title": "Assemble complete weekly digest",
+      "description": "As a developer, I need to generate the final weekly digest HTML.",
+      "acceptanceCriteria": [
+        "Function `generateWeeklyDigest(recipientName: string)` returns complete HTML string",
+        "Uses weekly data aggregator + weekly template + AI content",
+        "Typecheck passes"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-046",
+      "title": "Add API endpoint for weekly digest",
+      "description": "As a developer, I need an endpoint to trigger the weekly digest.",
+      "acceptanceCriteria": [
+        "POST `/api/digest/weekly` triggers weekly digest generation and send",
+        "Requires `X-Cron-Secret` header",
+        "Email subject: \"🐕 Retriever Weekly Digest - Week of [Date]\"",
+        "Returns JSON: `{ success: boolean, sent: number, failed: number }`",
+        "Typecheck passes"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-047",
+      "title": "Add weekly preview to Testing page",
+      "description": "As an admin, I want to preview the weekly digest before it goes out.",
+      "acceptanceCriteria": [
+        "Testing page has \"Preview Weekly Digest\" button",
+        "Clicking fetches and renders weekly digest in iframe",
+        "GET `/api/preview/weekly` endpoint returns weekly HTML",
+        "Typecheck passes",
+        "Verify in browser using agent-browser skill"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-048",
+      "title": "Create Render deployment configuration",
+      "description": "As a developer, I need the app deployable to Render.",
+      "acceptanceCriteria": [
+        "`render.yaml` with web service configuration",
+        "Build command: `npm run build`",
+        "Start command: `npm run start`",
+        "All required environment variables documented in README",
+        "Database connection uses Render internal URL",
+        "Typecheck passes"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-049",
+      "title": "Document cron job setup for Render",
+      "description": "As a developer, I need instructions for scheduling digests on Render.",
+      "acceptanceCriteria": [
+        "README section: \"Render Cron Job Setup\"",
+        "Daily cron: `0 12 * * *` (4:00 AM PST = 12:00 UTC)",
+        "Weekly cron: `0 2 * * 6` (Friday 6:00 PM PST = Saturday 02:00 UTC)",
+        "Cron jobs call POST to `/api/digest/daily` and `/api/digest/weekly` with `X-Cron-Secret` header",
+        "Example curl commands provided"
+      ],
+      "priority": 49,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-050",
+      "title": "Document PrintSmith server setup",
+      "description": "As a developer, I need instructions for deploying the export script.",
+      "acceptanceCriteria": [
+        "README section: \"PrintSmith Export Script Setup\"",
+        "Instructions to install Python 3 and pip",
+        "Instructions to install dependencies: `pip install -r requirements.txt`",
+        "Instructions to configure environment variables",
+        "Instructions to set up Windows Task Scheduler for 4:00 AM EST daily",
+        "Example Task Scheduler XML configuration",
+        "Troubleshooting section for common issues"
+      ],
+      "priority": 50,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
