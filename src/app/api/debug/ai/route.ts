@@ -37,14 +37,17 @@ Write a 2-3 sentence motivational team summary that:
 3. Maintains a professional, encouraging tone appropriate for a B2B medical printing company
 4. Focuses on team success and shared wins
 
+IMPORTANT: Create a unique, creative headline. Do NOT start with "Strong" - use varied words like "Excellent", "Outstanding", "Crushing It", "On Fire", "Momentum Building", "Goals in Sight", "Another Win", "Delivering Excellence", "Making It Happen", etc.
+
 Return your response in this exact JSON format:
-{"headline": "Short 2-4 word headline", "message": "Your 2-3 sentence motivational message here."}`;
+{"headline": "2-4 word headline (NOT starting with Strong)", "message": "Your 2-3 sentence motivational message here."}`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
+      temperature: 1,
       messages: [{ role: 'user', content: prompt }],
-      system: 'You generate professional, team-focused motivational content for a medical printing company. Always respond with valid JSON only.',
+      system: 'You generate professional, team-focused motivational content for a medical printing company. Always respond with valid JSON only. NEVER use the word "Strong" in headlines.',
     });
 
     const text = response.content[0]?.type === 'text' ? response.content[0].text.trim() : null;
