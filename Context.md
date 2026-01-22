@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-01-21  
-> **Current Phase:** Phase 1 Complete, Phase 2 Ready  
-> **Status:** Local development tested, ready for production deployment
+> **Last Updated:** 2026-01-22  
+> **Current Phase:** Phase 2 Complete, Phase 3 Ready  
+> **Status:** Deployed to Render, AI content working, needs AI improvements
 
 ---
 
@@ -42,13 +42,14 @@
 - Successfully exported: $16,154.43 daily revenue (subtotal), 24 invoices, 13 estimates
 - Export queries audited and updated to use `subtotal` field (matches PrintSmith home screen)
 
-### Phase 2: Production Deployment (Render) ⏳ NEXT
-- Push code to GitHub
-- Create Render Web Service
-- Configure environment variables
-- Set up cron jobs for automated digests
+### Phase 2: Production Deployment (Render) ✅ COMPLETE
+- Pushed code to GitHub (bobtucker1129/retriever_digest)
+- Created Render Web Service at https://retriever-digest.onrender.com
+- Configured all environment variables
+- AI content generation working
+- Cron jobs still need setup
 
-### Phase 3: PrintSmith Server Setup 🔲 PENDING
+### Phase 3: PrintSmith Server Setup ⏳ NEXT
 - Install Python on PrintSmith Windows server
 - Configure Windows Task Scheduler
 - Set up daily 4:00 AM export
@@ -186,6 +187,17 @@ EXPORT_API_SECRET=...              # Must match web app
 
 ## Session History
 
+### 2026-01-22 (Session 3): Render Deployment & AI Fixes
+- Deployed to Render at https://retriever-digest.onrender.com
+- Fixed revenue discrepancy ($653K→$612K) by adding JOIN to `invoice` table
+- Fixed AI content not generating: was being statically cached at build time
+- Added `export const dynamic = 'force-dynamic'` and `fetchCache = 'force-no-store'`
+- Fixed repetitive "Strong ___" headlines with better prompts
+- Added `temperature: 1` for more variety
+- Added `python-dotenv` to export script for local .env loading
+- Created debug endpoint `/api/debug/ai` for troubleshooting
+- **Known Issue:** AI content needs more context (goals, trends) to be useful
+
 ### 2026-01-21 (Session 2): PrintSmith Query Audit
 - Audited export queries against PrintSmith home screen dashboard
 - Discovered multiple amount fields: `subtotal`, `adjustedamountdue`, `grandtotal`
@@ -208,11 +220,36 @@ EXPORT_API_SECRET=...              # Must match web app
 
 ## Next Steps
 
-1. **Commit current changes** (many files modified, see list below)
-2. **Start Phase 2**: Push to GitHub, deploy to Render
-3. **Configure Render environment variables**
-4. **Set up cron jobs** for daily/weekly digests
-5. **Phase 3**: Install on PrintSmith Windows server
+### PRIORITY: AI Content Improvements
+The current AI content is too repetitive and lacks context. Users won't read it after day 3. Need to:
+
+1. **Add goal-awareness to AI prompts**
+   - Pass monthly/annual goals to AI
+   - Include progress percentages ("71% to goal with 10 days left")
+   - AI can say "on track" or "need to push" based on progress
+
+2. **Add trend/comparison context**
+   - Pass yesterday's numbers for comparison
+   - Include week-over-week trends
+   - AI can reference improvements or declines
+
+3. **Fix Daily Inspiration (quote/joke)**
+   - Currently shows same content repeatedly
+   - Needs same caching fixes as motivational summary
+
+4. **Review all AI sections:**
+   - Motivational summary (top) ✅ Fixed basic caching
+   - Highlights section
+   - Sales insights
+   - Hot streaks
+   - Anniversary reorders
+   - Daily inspiration (quote/joke) - NOT WORKING
+
+### Other Tasks
+5. **Set up Render cron jobs** for automated daily/weekly digests
+6. **Phase 3**: Install export script on PrintSmith Windows server
+7. **Phase 4**: End-to-end testing
+8. **Phase 5**: Go live
 
 ---
 
