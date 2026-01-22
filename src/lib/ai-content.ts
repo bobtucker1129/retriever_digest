@@ -160,12 +160,15 @@ function formatCurrencyForAI(amount: number): string {
 export async function generateMotivationalSummary(metrics: DigestMetricsForAI): Promise<MotivationalSummary> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   
+  console.log('[AI Content] generateMotivationalSummary called, API key exists:', !!apiKey);
+  
   if (!apiKey) {
     console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback motivational content');
     return getRandomMotivationalFallback();
   }
 
   try {
+    console.log('[AI Content] Calling Anthropic API for motivational summary...');
     const anthropic = new Anthropic({ apiKey });
     
     const periodType = metrics.isWeekly ? 'week' : 'day';
@@ -207,22 +210,43 @@ Return your response in this exact JSON format:
     const textBlock = response.content.find(block => block.type === 'text');
     const text = textBlock && textBlock.type === 'text' ? textBlock.text.trim() : null;
     
+    console.log('[AI Content] API response received, text length:', text?.length || 0);
+    
     if (!text) {
+      console.log('[AI Content] Empty response, using fallback');
       return getRandomMotivationalFallback();
     }
 
     try {
-      const parsed = JSON.parse(text);
+      // Extract JSON from response - handle markdown code fences and extra text
+      let jsonText = text;
+      
+      // Remove markdown code fences if present
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[1].trim();
+        console.log('[AI Content] Extracted JSON from code fence');
+      }
+      
+      // Try to find JSON object in the text
+      const objectMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (objectMatch) {
+        jsonText = objectMatch[0];
+      }
+      
+      const parsed = JSON.parse(jsonText);
       if (parsed.headline && parsed.message) {
+        console.log('[AI Content] Successfully generated:', parsed.headline);
         return {
           headline: parsed.headline,
           message: parsed.message,
         };
       }
-    } catch {
-      console.error('[AI Content] Failed to parse motivational JSON response');
+    } catch (parseError) {
+      console.error('[AI Content] Failed to parse motivational JSON response. Raw text:', text.substring(0, 200));
     }
 
+    console.log('[AI Content] Parse failed, using fallback');
     return getRandomMotivationalFallback();
   } catch (error) {
     console.error('[AI Content] Failed to generate motivational summary:', error);

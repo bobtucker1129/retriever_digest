@@ -11,10 +11,16 @@ import argparse
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import psycopg2
 from psycopg2 import OperationalError, DatabaseError
 import requests
+from dotenv import load_dotenv
+
+# Load .env file from project root (parent of export/ directory)
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(env_path)
 
 # Configure logging
 logging.basicConfig(
@@ -112,10 +118,12 @@ def get_completed_invoices(conn, target_date):
             ib.weborderexternalid,
             ib.invoicetitle AS job_description
         FROM invoicebase ib
+        JOIN invoice i ON ib.id = i.id
         LEFT JOIN salesrep s ON ib.salesrep_id = s.id
         WHERE DATE(ib.pickupdate) = %s
           AND ib.onpendinglist = false
           AND ib.isdeleted = false
+          AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
         ORDER BY ib.subtotal DESC
     """
@@ -222,8 +230,10 @@ def get_pm_open_invoices(conn):
             COUNT(*) AS open_count,
             COALESCE(SUM(ib.subtotal), 0) AS open_total_dollars
         FROM invoicebase ib
+        JOIN invoice i ON ib.id = i.id
         WHERE ib.onpendinglist = true
           AND ib.isdeleted = false
+          AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
           AND ib.takenby IN %s
         GROUP BY ib.takenby
@@ -268,9 +278,11 @@ def get_bd_open_invoices(conn):
             COUNT(*) AS open_count,
             COALESCE(SUM(ib.subtotal), 0) AS open_total_dollars
         FROM invoicebase ib
+        JOIN invoice i ON ib.id = i.id
         JOIN salesrep s ON ib.salesrep_id = s.id
         WHERE ib.onpendinglist = true
           AND ib.isdeleted = false
+          AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
           AND s.name IN %s
         GROUP BY s.name
@@ -323,10 +335,12 @@ def get_mtd_metrics(conn):
                     COUNT(*) AS sales_count,
                     COALESCE(SUM(ib.subtotal), 0) AS revenue
                 FROM invoicebase ib
+                JOIN invoice i ON ib.id = i.id
                 WHERE DATE(ib.pickupdate) >= %s
                   AND DATE(ib.pickupdate) <= %s
                   AND ib.onpendinglist = false
                   AND ib.isdeleted = false
+                  AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
             """
             cur.execute(revenue_query, (first_of_month, today))
@@ -350,18 +364,22 @@ def get_mtd_metrics(conn):
             new_customers_query = """
                 SELECT COUNT(DISTINCT ib.account_id)
                 FROM invoicebase ib
+                JOIN invoice i ON ib.id = i.id
                 WHERE DATE(ib.pickupdate) >= %s
                   AND DATE(ib.pickupdate) <= %s
                   AND ib.onpendinglist = false
                   AND ib.isdeleted = false
+                  AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
                   AND NOT EXISTS (
                       SELECT 1
                       FROM invoicebase ib2
+                      JOIN invoice i2 ON ib2.id = i2.id
                       WHERE ib2.account_id = ib.account_id
                         AND DATE(ib2.pickupdate) < %s
                         AND ib2.onpendinglist = false
                         AND ib2.isdeleted = false
+                        AND i2.isdeleted = false
                         AND COALESCE(ib2.voided, false) = false
                   )
             """
@@ -402,10 +420,12 @@ def get_ytd_metrics(conn):
                     COUNT(*) AS sales_count,
                     COALESCE(SUM(ib.subtotal), 0) AS revenue
                 FROM invoicebase ib
+                JOIN invoice i ON ib.id = i.id
                 WHERE DATE(ib.pickupdate) >= %s
                   AND DATE(ib.pickupdate) <= %s
                   AND ib.onpendinglist = false
                   AND ib.isdeleted = false
+                  AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
             """
             cur.execute(revenue_query, (first_of_year, today))
@@ -429,18 +449,22 @@ def get_ytd_metrics(conn):
             new_customers_query = """
                 SELECT COUNT(DISTINCT ib.account_id)
                 FROM invoicebase ib
+                JOIN invoice i ON ib.id = i.id
                 WHERE DATE(ib.pickupdate) >= %s
                   AND DATE(ib.pickupdate) <= %s
                   AND ib.onpendinglist = false
                   AND ib.isdeleted = false
+                  AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
                   AND NOT EXISTS (
                       SELECT 1
                       FROM invoicebase ib2
+                      JOIN invoice i2 ON ib2.id = i2.id
                       WHERE ib2.account_id = ib.account_id
                         AND DATE(ib2.pickupdate) < %s
                         AND ib2.onpendinglist = false
                         AND ib2.isdeleted = false
+                        AND i2.isdeleted = false
                         AND COALESCE(ib2.voided, false) = false
                   )
             """
@@ -482,11 +506,13 @@ def get_anniversary_reorders(conn):
             ib.invoicetitle AS job_description,
             COALESCE(s.name, '') AS bd
         FROM invoicebase ib
+        JOIN invoice i ON ib.id = i.id
         LEFT JOIN salesrep s ON ib.salesrep_id = s.id
         WHERE DATE(ib.pickupdate) BETWEEN %s AND %s
           AND ib.subtotal >= 2000
           AND ib.onpendinglist = false
           AND ib.isdeleted = false
+          AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
         ORDER BY ib.subtotal DESC
         LIMIT 5
@@ -539,8 +565,10 @@ def get_lapsed_accounts(conn):
                 SUM(ib.subtotal) AS lifetime_value,
                 COUNT(*) AS order_count
             FROM invoicebase ib
+            JOIN invoice i ON ib.id = i.id
             WHERE ib.onpendinglist = false
               AND ib.isdeleted = false
+              AND i.isdeleted = false
               AND COALESCE(ib.voided, false) = false
             GROUP BY ib.account_id, ib.name
         )
@@ -654,9 +682,11 @@ def get_hot_streak_accounts(conn):
                 COUNT(*) AS recent_count,
                 SUM(ib.subtotal) AS recent_spend
             FROM invoicebase ib
+            JOIN invoice i ON ib.id = i.id
             WHERE DATE(ib.pickupdate) >= %s
               AND ib.onpendinglist = false
               AND ib.isdeleted = false
+              AND i.isdeleted = false
               AND COALESCE(ib.voided, false) = false
             GROUP BY ib.account_id, ib.name
         ),
@@ -665,9 +695,11 @@ def get_hot_streak_accounts(conn):
                 ib.account_id,
                 COUNT(*) AS prior_count
             FROM invoicebase ib
+            JOIN invoice i ON ib.id = i.id
             WHERE DATE(ib.pickupdate) >= %s AND DATE(ib.pickupdate) < %s
               AND ib.onpendinglist = false
               AND ib.isdeleted = false
+              AND i.isdeleted = false
               AND COALESCE(ib.voided, false) = false
             GROUP BY ib.account_id
         )
