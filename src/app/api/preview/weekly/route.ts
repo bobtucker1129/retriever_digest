@@ -3,6 +3,7 @@ import { generateWeeklyDigestWithMockFallback } from '@/lib/weekly-digest';
 
 // Force dynamic rendering - don't cache at build time
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 export async function GET() {
   try {
@@ -12,6 +13,9 @@ export async function GET() {
       status: 200,
       headers: {
         'Content-Type': 'text/html',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     });
 
