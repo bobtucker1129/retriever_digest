@@ -13,7 +13,7 @@ const pool = new Pool({
     : undefined,
 });
 
-const adapter = new PrismaPg({ pool });
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
