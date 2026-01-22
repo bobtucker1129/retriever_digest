@@ -96,6 +96,7 @@ export async function generateAIContent(): Promise<AIContent> {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 150,
+      temperature: 1,
       messages: [
         {
           role: 'user',
@@ -198,6 +199,7 @@ Return your response in this exact JSON format:
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
+      temperature: 1,
       messages: [
         {
           role: 'user',
