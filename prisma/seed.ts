@@ -1,9 +1,19 @@
 import "dotenv/config";
+import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, GoalType } from "../src/generated/prisma/client";
 
 const connectionString = process.env.DATABASE_URL!;
-const adapter = new PrismaPg({ connectionString });
+
+// Create a pg Pool with SSL configuration for Render's external database
+const pool = new Pool({
+  connectionString,
+  ssl: connectionString.includes('render.com')
+    ? { rejectUnauthorized: false }
+    : undefined,
+});
+
+const adapter = new PrismaPg({ pool });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
@@ -108,5 +118,6 @@ main()
     process.exit(1);
   })
   .finally(async () => {
+    await pool.end();
     await prisma.$disconnect();
   });

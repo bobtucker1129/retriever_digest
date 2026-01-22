@@ -1,10 +1,40 @@
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
 export interface AIContent {
   type: string;
   content: string;
   attribution?: string;
 }
+
+export interface MotivationalSummary {
+  headline: string;
+  message: string;
+}
+
+export interface DigestMetricsForAI {
+  revenue: number;
+  ordersCompleted: number;
+  estimatesCreated: number;
+  newCustomers: number;
+  isWeekly?: boolean;
+  weekOverWeekRevenueChange?: number;
+  weekOverWeekOrdersChange?: number;
+}
+
+const FALLBACK_MOTIVATIONAL: MotivationalSummary[] = [
+  {
+    headline: 'Strong Performance',
+    message: 'The team delivered solid results. Every order completed and every customer served reflects the dedication and expertise that sets BooneGraphics apart in medical printing.',
+  },
+  {
+    headline: 'Moving Forward Together',
+    message: 'Another productive period in the books. The collective effort across sales, production, and customer service continues to drive results for our medical industry partners.',
+  },
+  {
+    headline: 'Building Momentum',
+    message: 'The numbers reflect consistent execution across the board. Quality work and reliable service remain the foundation of our success in medical printing.',
+  },
+];
 
 const FALLBACK_CONTENT: AIContent[] = [
   {
@@ -47,14 +77,15 @@ const FALLBACK_CONTENT: AIContent[] = [
 ];
 
 export async function generateAIContent(): Promise<AIContent> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   
   if (!apiKey) {
+    console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback content');
     return getRandomFallback();
   }
 
   try {
-    const openai = new OpenAI({ apiKey });
+    const anthropic = new Anthropic({ apiKey });
     
     const contentType = Math.random() > 0.5 ? 'quote' : 'joke';
     
@@ -62,23 +93,20 @@ export async function generateAIContent(): Promise<AIContent> {
       ? `Generate a short motivational quote (1-2 sentences) about sales, business success, or the printing industry. Keep it professional and appropriate for a workplace email. Return ONLY the quote text and attribution in this exact format: "QUOTE_TEXT" - ATTRIBUTION`
       : `Generate a short, clean joke (1-2 sentences) about sales, printing, or business. Keep it professional and appropriate for a workplace email. Return ONLY the joke text, no setup labels.`;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 150,
       messages: [
-        {
-          role: 'system',
-          content: 'You generate short, workplace-appropriate motivational content for a sales team email digest. Keep responses brief and professional.',
-        },
         {
           role: 'user',
           content: prompt,
         },
       ],
-      max_tokens: 150,
-      temperature: 0.8,
+      system: 'You generate short, workplace-appropriate motivational content for a sales team email digest. Keep responses brief and professional.',
     });
 
-    const text = response.choices[0]?.message?.content?.trim();
+    const textBlock = response.content.find(block => block.type === 'text');
+    const text = textBlock && textBlock.type === 'text' ? textBlock.text.trim() : null;
     
     if (!text) {
       return getRandomFallback();
@@ -105,7 +133,7 @@ export async function generateAIContent(): Promise<AIContent> {
       };
     }
   } catch (error) {
-    console.error('Failed to generate AI content:', error);
+    console.error('[AI Content] Failed to generate AI content:', error);
     return getRandomFallback();
   }
 }
@@ -113,4 +141,91 @@ export async function generateAIContent(): Promise<AIContent> {
 function getRandomFallback(): AIContent {
   const index = Math.floor(Math.random() * FALLBACK_CONTENT.length);
   return FALLBACK_CONTENT[index];
+}
+
+function getRandomMotivationalFallback(): MotivationalSummary {
+  const index = Math.floor(Math.random() * FALLBACK_MOTIVATIONAL.length);
+  return FALLBACK_MOTIVATIONAL[index];
+}
+
+function formatCurrencyForAI(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export async function generateMotivationalSummary(metrics: DigestMetricsForAI): Promise<MotivationalSummary> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  
+  if (!apiKey) {
+    console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback motivational content');
+    return getRandomMotivationalFallback();
+  }
+
+  try {
+    const anthropic = new Anthropic({ apiKey });
+    
+    const periodType = metrics.isWeekly ? 'week' : 'day';
+    const periodLabel = metrics.isWeekly ? 'This Week' : 'Yesterday';
+    
+    let contextInfo = `${periodLabel}'s results: ${formatCurrencyForAI(metrics.revenue)} in revenue, ${metrics.ordersCompleted} orders completed, ${metrics.estimatesCreated} estimates created, ${metrics.newCustomers} new customers.`;
+    
+    if (metrics.isWeekly && metrics.weekOverWeekRevenueChange !== undefined) {
+      const revenueDirection = metrics.weekOverWeekRevenueChange >= 0 ? 'up' : 'down';
+      const ordersDirection = (metrics.weekOverWeekOrdersChange ?? 0) >= 0 ? 'up' : 'down';
+      contextInfo += ` Week-over-week: revenue ${revenueDirection} ${Math.abs(metrics.weekOverWeekRevenueChange)}%, orders ${ordersDirection} ${Math.abs(metrics.weekOverWeekOrdersChange ?? 0)}%.`;
+    }
+
+    const prompt = `You are writing a brief motivational summary for BooneGraphics, a professional printing company serving the medical industry. This will appear at the top of a ${periodType}ly digest email to the team.
+
+${contextInfo}
+
+Write a 2-3 sentence motivational team summary that:
+1. Acknowledges the team's collective effort (never call out individuals)
+2. Highlights something positive from the numbers
+3. Maintains a professional, encouraging tone appropriate for a B2B medical printing company
+4. Focuses on team success and shared wins
+
+Return your response in this exact JSON format:
+{"headline": "Short 2-4 word headline", "message": "Your 2-3 sentence motivational message here."}`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      system: 'You generate professional, team-focused motivational content for a medical printing company. Always respond with valid JSON only.',
+    });
+
+    const textBlock = response.content.find(block => block.type === 'text');
+    const text = textBlock && textBlock.type === 'text' ? textBlock.text.trim() : null;
+    
+    if (!text) {
+      return getRandomMotivationalFallback();
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.headline && parsed.message) {
+        return {
+          headline: parsed.headline,
+          message: parsed.message,
+        };
+      }
+    } catch {
+      console.error('[AI Content] Failed to parse motivational JSON response');
+    }
+
+    return getRandomMotivationalFallback();
+  } catch (error) {
+    console.error('[AI Content] Failed to generate motivational summary:', error);
+    return getRandomMotivationalFallback();
+  }
 }

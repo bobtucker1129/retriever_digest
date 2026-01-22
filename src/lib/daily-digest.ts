@@ -2,8 +2,17 @@
 
 import prisma from '@/lib/db';
 import { GoalType } from '@/generated/prisma/client';
-import { generateAIContent, type AIContent } from '@/lib/ai-content';
+import { generateAIContent, generateMotivationalSummary, type AIContent, type MotivationalSummary, type DigestMetricsForAI } from '@/lib/ai-content';
 import { sendEmail } from '@/lib/email';
+
+// BooneGraphics Brand Colors
+const BRAND_RED = '#B91C1C';
+const BRAND_RED_DARK = '#991B1B';
+const BRAND_RED_LIGHT = '#FEE2E2';
+const BRAND_GRAY = '#5f6360';
+
+// Retriever Logo URL
+const LOGO_URL = 'https://www.booneproofs.net/email/Retriever_Logo.svg';
 
 export interface SendDigestResult {
   sent: number;
@@ -37,16 +46,24 @@ export interface PerformanceData {
   revenue: number;
 }
 
+export interface AIInsight {
+  type: string;
+  title: string;
+  message: string;
+  items: Array<{
+    name: string;
+    detail: string;
+    value?: string;
+  }>;
+}
+
 export interface DigestDataPayload {
   date: string;
   metrics: DigestMetrics;
   highlights: DigestHighlight[];
   bdPerformance: PerformanceData[];
   pmPerformance: PerformanceData[];
-  aiInsights?: {
-    summary: string;
-    recommendations: string[];
-  };
+  aiInsights?: AIInsight[];
 }
 
 function formatCurrency(amount: number): string {
@@ -90,14 +107,23 @@ function renderProgressBar(current: number, goal: number, label: string): string
   const color = getProgressBarColor(percentage);
   
   return `
-    <div style="margin-bottom: 16px;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-        <span style="font-weight: 500; color: #374151;">${label}</span>
-        <span style="color: #6b7280;">${formatNumber(current)} / ${formatNumber(goal)} (${percentage}%)</span>
+    <div style="margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+        <span style="font-weight: 500; font-size: 13px; color: #374151;">${label}</span>
+        <span style="font-size: 13px; color: #6b7280;">${formatNumber(current)} / ${formatNumber(goal)} (${percentage}%)</span>
       </div>
-      <div style="background-color: #e5e7eb; border-radius: 9999px; height: 12px; overflow: hidden;">
+      <div style="background-color: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
         <div style="background-color: ${color}; height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>
       </div>
+    </div>
+  `;
+}
+
+function renderMotivationalSection(motivational: MotivationalSummary): string {
+  return `
+    <div style="padding: 16px 20px; background-color: ${BRAND_RED_LIGHT}; border-left: 3px solid ${BRAND_RED};">
+      <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: ${BRAND_RED_DARK};">${motivational.headline}</p>
+      <p style="margin: 0; font-size: 13px; color: #374151; line-height: 1.5;">${motivational.message}</p>
     </div>
   `;
 }
@@ -105,18 +131,42 @@ function renderProgressBar(current: number, goal: number, label: string): string
 function renderAIContent(aiContent: AIContent): string {
   if (aiContent.type === 'quote') {
     return `
-      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin-top: 24px; border-radius: 0 8px 8px 0;">
-        <p style="margin: 0; font-style: italic; color: #92400e;">"${aiContent.content}"</p>
-        ${aiContent.attribution ? `<p style="margin: 8px 0 0 0; font-size: 14px; color: #b45309;">— ${aiContent.attribution}</p>` : ''}
+      <div style="background-color: #fef3c7; border-left: 3px solid #f59e0b; padding: 12px; margin-top: 12px; border-radius: 0 2px 2px 0;">
+        <p style="margin: 0; font-style: italic; font-size: 13px; color: #92400e;">"${aiContent.content}"</p>
+        ${aiContent.attribution ? `<p style="margin: 6px 0 0 0; font-size: 12px; color: #b45309;">— ${aiContent.attribution}</p>` : ''}
       </div>
     `;
   } else {
     return `
-      <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin-top: 24px; border-radius: 0 8px 8px 0;">
-        <p style="margin: 0; color: #065f46;">😄 ${aiContent.content}</p>
+      <div style="background-color: #ecfdf5; border-left: 3px solid #10b981; padding: 12px; margin-top: 12px; border-radius: 0 2px 2px 0;">
+        <p style="margin: 0; font-size: 13px; color: #065f46;">${aiContent.content}</p>
       </div>
     `;
   }
+}
+
+function renderAIInsights(insights: AIInsight[]): string {
+  if (!insights || insights.length === 0) return '';
+  
+  // Pick 1-2 random insights to feature
+  const shuffled = [...insights].sort(() => Math.random() - 0.5);
+  const featured = shuffled.slice(0, 2);
+  
+  return featured.map(insight => `
+    <div style="background-color: ${BRAND_RED_LIGHT}; border-left: 3px solid ${BRAND_RED}; padding: 12px; margin-bottom: 12px; border-radius: 0 2px 2px 0;">
+      <p style="margin: 0 0 6px 0; font-weight: 600; font-size: 13px; color: ${BRAND_RED_DARK};">${insight.title}</p>
+      <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 12px;">${insight.message}</p>
+      ${insight.items.length > 0 ? `
+        <ul style="margin: 0; padding: 0 0 0 16px; color: #374151; font-size: 12px;">
+          ${insight.items.slice(0, 3).map(item => `
+            <li style="margin-bottom: 3px;">
+              <strong>${item.name}</strong>: ${item.detail}${item.value ? ` - ${item.value}` : ''}
+            </li>
+          `).join('')}
+        </ul>
+      ` : ''}
+    </div>
+  `).join('');
 }
 
 export async function getLatestDigestData(): Promise<DigestDataPayload | null> {
@@ -167,9 +217,19 @@ export async function generateDailyDigest(recipientName: string): Promise<string
     yearToDateNewCustomers: 0,
   };
 
+  const metricsForAI: DigestMetricsForAI = {
+    revenue: metrics.dailyRevenue,
+    ordersCompleted: metrics.dailySalesCount,
+    estimatesCreated: metrics.dailyEstimatesCreated,
+    newCustomers: metrics.dailyNewCustomers,
+    isWeekly: false,
+  };
+  const motivational = await generateMotivationalSummary(metricsForAI);
+
   const highlights = digestData?.highlights || [];
   const bdPerformance = digestData?.bdPerformance || [];
   const pmPerformance = digestData?.pmPerformance || [];
+  const aiInsights = digestData?.aiInsights || [];
   const dateStr = digestData?.date || new Date().toISOString().split('T')[0];
 
   const html = `
@@ -183,83 +243,78 @@ export async function generateDailyDigest(recipientName: string): Promise<string
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6;">
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
     <!-- Header -->
-    <div style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 24px; text-align: center;">
-      <div style="display: inline-block; background-color: white; padding: 12px; border-radius: 12px; margin-bottom: 16px;">
-        <svg width="48" height="48" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-          <ellipse cx="50" cy="70" rx="30" ry="20" fill="#8B4513"/>
-          <circle cx="50" cy="40" r="25" fill="#8B4513"/>
-          <ellipse cx="35" cy="25" rx="10" ry="15" fill="#8B4513"/>
-          <ellipse cx="65" cy="25" rx="10" ry="15" fill="#8B4513"/>
-          <ellipse cx="42" cy="38" rx="5" ry="6" fill="white"/>
-          <ellipse cx="58" cy="38" rx="5" ry="6" fill="white"/>
-          <circle cx="42" cy="38" r="3" fill="#333"/>
-          <circle cx="58" cy="38" r="3" fill="#333"/>
-          <ellipse cx="50" cy="48" rx="6" ry="4" fill="#333"/>
-          <path d="M35 55 Q50 62 65 55" stroke="#333" stroke-width="2" fill="none"/>
-          <ellipse cx="50" cy="58" rx="3" ry="2" fill="#FF69B4"/>
-        </svg>
-      </div>
-      <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">🐕 Retriever Daily Digest</h1>
-      <p style="margin: 8px 0 0 0; color: #bfdbfe; font-size: 16px;">${formatDate(dateStr)}</p>
+    <div style="background-color: ${BRAND_RED}; padding: 20px; text-align: center;">
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 160px; height: 160px; margin-bottom: 8px; filter: brightness(0) invert(1);" />
+      <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">Daily Digest</h1>
+      <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 12px;">${formatDate(dateStr)}</p>
     </div>
 
-    <!-- Greeting -->
-    <div style="padding: 24px;">
-      <p style="margin: 0; font-size: 18px; color: #374151;">Good morning, <strong>${recipientName}</strong>! 👋</p>
-      <p style="margin: 8px 0 0 0; color: #6b7280;">Here's what happened yesterday at BooneGraphics.</p>
-    </div>
+    <!-- Motivational Section -->
+    ${renderMotivationalSection(motivational)}
 
     <!-- Daily Summary -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">📊 Yesterday's Numbers</h2>
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
-        <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1e3a8a;">${formatCurrency(metrics.dailyRevenue)}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Revenue</p>
-        </div>
-        <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1e3a8a;">${formatNumber(metrics.dailySalesCount)}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Orders Completed</p>
-        </div>
-        <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1e3a8a;">${formatNumber(metrics.dailyEstimatesCreated)}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Estimates Created</p>
-        </div>
-        <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1e3a8a;">${formatNumber(metrics.dailyNewCustomers)}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">New Customers</p>
-        </div>
-      </div>
+    <div style="padding: 16px 20px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Yesterday's Numbers</h2>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 2px 0 0 0;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatCurrency(metrics.dailyRevenue)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Revenue</p>
+          </td>
+          <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatNumber(metrics.dailySalesCount)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Orders Completed</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="width: 50%; padding: 6px; text-align: center; background-color: #f9fafb; border-radius: 0 0 0 2px;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_GRAY};">${formatNumber(metrics.dailyEstimatesCreated)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Estimates Created</p>
+          </td>
+          <td style="width: 50%; padding: 6px; text-align: center; background-color: #f9fafb; border-radius: 0 0 2px 0;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_GRAY};">${formatNumber(metrics.dailyNewCustomers)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">New Customers</p>
+          </td>
+        </tr>
+      </table>
     </div>
 
     ${highlights.length > 0 ? `
     <!-- Highlights -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">⭐ Highlights</h2>
-      <ul style="margin: 0; padding: 0 0 0 20px; color: #374151;">
-        ${highlights.map(h => `<li style="margin-bottom: 8px;">${h.description}</li>`).join('')}
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Highlights</h2>
+      <ul style="margin: 0; padding: 0 0 0 16px; color: #374151; font-size: 13px;">
+        ${highlights.map(h => `<li style="margin-bottom: 4px;">${h.description}</li>`).join('')}
       </ul>
+    </div>
+    ` : ''}
+
+    ${aiInsights.length > 0 ? `
+    <!-- AI Insights -->
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Sales Insights</h2>
+      ${renderAIInsights(aiInsights)}
     </div>
     ` : ''}
 
     ${pmPerformance.length > 0 ? `
     <!-- PM Performance -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">👷 PM Performance</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">PM Performance</h2>
       <table style="width: 100%; border-collapse: collapse;">
         <thead>
           <tr style="background-color: #f3f4f6;">
-            <th style="text-align: left; padding: 8px; font-size: 14px; color: #6b7280;">PM</th>
-            <th style="text-align: center; padding: 8px; font-size: 14px; color: #6b7280;">Orders</th>
-            <th style="text-align: right; padding: 8px; font-size: 14px; color: #6b7280;">Revenue</th>
+            <th style="text-align: left; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">PM</th>
+            <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Orders</th>
+            <th style="text-align: right; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Revenue</th>
           </tr>
         </thead>
         <tbody>
           ${pmPerformance.map(pm => `
             <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 8px; color: #374151;">${pm.name}</td>
-              <td style="padding: 8px; text-align: center; color: #374151;">${formatNumber(pm.ordersCompleted)}</td>
-              <td style="padding: 8px; text-align: right; color: #374151;">${formatCurrency(pm.revenue)}</td>
+              <td style="padding: 6px; font-size: 13px; color: #374151;">${pm.name}</td>
+              <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(pm.ordersCompleted)}</td>
+              <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151;">${formatCurrency(pm.revenue)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -269,22 +324,22 @@ export async function generateDailyDigest(recipientName: string): Promise<string
 
     ${bdPerformance.length > 0 ? `
     <!-- BD Performance -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">💼 BD Performance</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">BD Performance</h2>
       <table style="width: 100%; border-collapse: collapse;">
         <thead>
           <tr style="background-color: #f3f4f6;">
-            <th style="text-align: left; padding: 8px; font-size: 14px; color: #6b7280;">BD</th>
-            <th style="text-align: center; padding: 8px; font-size: 14px; color: #6b7280;">Orders</th>
-            <th style="text-align: right; padding: 8px; font-size: 14px; color: #6b7280;">Revenue</th>
+            <th style="text-align: left; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">BD</th>
+            <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Orders</th>
+            <th style="text-align: right; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Revenue</th>
           </tr>
         </thead>
         <tbody>
           ${bdPerformance.map(bd => `
             <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 8px; color: #374151;">${bd.name}</td>
-              <td style="padding: 8px; text-align: center; color: #374151;">${formatNumber(bd.ordersCompleted)}</td>
-              <td style="padding: 8px; text-align: right; color: #374151;">${formatCurrency(bd.revenue)}</td>
+              <td style="padding: 6px; font-size: 13px; color: #374151;">${bd.name}</td>
+              <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(bd.ordersCompleted)}</td>
+              <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151;">${formatCurrency(bd.revenue)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -293,8 +348,8 @@ export async function generateDailyDigest(recipientName: string): Promise<string
     ` : ''}
 
     <!-- Monthly Progress -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">📅 Monthly Progress</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Monthly Progress</h2>
       ${renderProgressBar(metrics.monthToDateRevenue, Number(monthly.salesRevenue), 'Revenue')}
       ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'Sales Count')}
       ${renderProgressBar(metrics.monthToDateEstimatesCreated, monthly.estimatesCreated, 'Estimates Created')}
@@ -302,8 +357,8 @@ export async function generateDailyDigest(recipientName: string): Promise<string
     </div>
 
     <!-- Annual Progress -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">📆 Annual Progress</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Annual Progress</h2>
       ${renderProgressBar(metrics.yearToDateRevenue, Number(annual.salesRevenue), 'Revenue')}
       ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'Sales Count')}
       ${renderProgressBar(metrics.yearToDateEstimatesCreated, annual.estimatesCreated, 'Estimates Created')}
@@ -311,15 +366,16 @@ export async function generateDailyDigest(recipientName: string): Promise<string
     </div>
 
     <!-- AI Quote/Joke -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">💡 Daily Inspiration</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Daily Inspiration</h2>
       ${renderAIContent(aiContent)}
     </div>
 
     <!-- Footer -->
-    <div style="background-color: #1e3a8a; padding: 24px; text-align: center;">
-      <p style="margin: 0; color: #bfdbfe; font-size: 14px;">🐕 Retriever Daily Digest</p>
-      <p style="margin: 8px 0 0 0; color: #93c5fd; font-size: 12px;">BooneGraphics Internal Sales Tool</p>
+    <div style="background-color: ${BRAND_RED_DARK}; padding: 16px; text-align: center;">
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; filter: brightness(0) invert(1); opacity: 0.9;" />
+      <p style="margin: 0; color: rgba(255,255,255,0.9); font-size: 12px;">Retriever Daily Digest</p>
+      <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.7); font-size: 11px;">BooneGraphics Internal Sales Tool</p>
     </div>
   </div>
 </body>
@@ -357,6 +413,26 @@ const MOCK_DIGEST_DATA: DigestDataPayload = {
     { name: 'Carol Evans', ordersCompleted: 4, revenue: 2800.0 },
     { name: 'Dan Foster', ordersCompleted: 4, revenue: 1450.75 },
   ],
+  aiInsights: [
+    {
+      type: 'anniversary_reorders',
+      title: 'Anniversary Reorder Opportunities',
+      message: 'These customers had large orders 10-11 months ago - time to follow up!',
+      items: [
+        { name: 'Acme Corporation', detail: 'Annual report printing', value: '$3,500' },
+        { name: 'Tech Startup Inc', detail: 'Trade show banners', value: '$2,800' },
+      ],
+    },
+    {
+      type: 'lapsed_accounts',
+      title: 'Lapsed High-Value Accounts',
+      message: 'These accounts haven\'t ordered in 6+ months but have strong history.',
+      items: [
+        { name: 'Downtown Realty', detail: 'Last order: Jul 2025', value: '$12,000 lifetime' },
+        { name: 'City Hospital', detail: 'Last order: Jun 2025', value: '$8,500 lifetime' },
+      ],
+    },
+  ],
 };
 
 export async function generateDailyDigestWithMockFallback(
@@ -386,7 +462,17 @@ export async function generateDailyDigestWithMockFallback(
   const highlights = dataToUse.highlights || [];
   const bdPerformance = dataToUse.bdPerformance || [];
   const pmPerformance = dataToUse.pmPerformance || [];
+  const aiInsights = dataToUse.aiInsights || [];
   const dateStr = dataToUse.date;
+
+  const metricsForAI: DigestMetricsForAI = {
+    revenue: metrics.dailyRevenue,
+    ordersCompleted: metrics.dailySalesCount,
+    estimatesCreated: metrics.dailyEstimatesCreated,
+    newCustomers: metrics.dailyNewCustomers,
+    isWeekly: false,
+  };
+  const motivational = await generateMotivationalSummary(metricsForAI);
 
   const html = `
 <!DOCTYPE html>
@@ -399,83 +485,78 @@ export async function generateDailyDigestWithMockFallback(
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6;">
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
     <!-- Header -->
-    <div style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 24px; text-align: center;">
-      <div style="display: inline-block; background-color: white; padding: 12px; border-radius: 12px; margin-bottom: 16px;">
-        <svg width="48" height="48" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-          <ellipse cx="50" cy="70" rx="30" ry="20" fill="#8B4513"/>
-          <circle cx="50" cy="40" r="25" fill="#8B4513"/>
-          <ellipse cx="35" cy="25" rx="10" ry="15" fill="#8B4513"/>
-          <ellipse cx="65" cy="25" rx="10" ry="15" fill="#8B4513"/>
-          <ellipse cx="42" cy="38" rx="5" ry="6" fill="white"/>
-          <ellipse cx="58" cy="38" rx="5" ry="6" fill="white"/>
-          <circle cx="42" cy="38" r="3" fill="#333"/>
-          <circle cx="58" cy="38" r="3" fill="#333"/>
-          <ellipse cx="50" cy="48" rx="6" ry="4" fill="#333"/>
-          <path d="M35 55 Q50 62 65 55" stroke="#333" stroke-width="2" fill="none"/>
-          <ellipse cx="50" cy="58" rx="3" ry="2" fill="#FF69B4"/>
-        </svg>
-      </div>
-      <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">🐕 Retriever Daily Digest</h1>
-      <p style="margin: 8px 0 0 0; color: #bfdbfe; font-size: 16px;">${formatDate(dateStr)}</p>
+    <div style="background-color: ${BRAND_RED}; padding: 20px; text-align: center;">
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 160px; height: 160px; margin-bottom: 8px; filter: brightness(0) invert(1);" />
+      <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">Daily Digest</h1>
+      <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 12px;">${formatDate(dateStr)}</p>
     </div>
 
-    <!-- Greeting -->
-    <div style="padding: 24px;">
-      <p style="margin: 0; font-size: 18px; color: #374151;">Good morning, <strong>${recipientName}</strong>! 👋</p>
-      <p style="margin: 8px 0 0 0; color: #6b7280;">Here's what happened yesterday at BooneGraphics.</p>
-    </div>
+    <!-- Motivational Section -->
+    ${renderMotivationalSection(motivational)}
 
     <!-- Daily Summary -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">📊 Yesterday's Numbers</h2>
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
-        <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1e3a8a;">${formatCurrency(metrics.dailyRevenue)}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Revenue</p>
-        </div>
-        <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1e3a8a;">${formatNumber(metrics.dailySalesCount)}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Orders Completed</p>
-        </div>
-        <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1e3a8a;">${formatNumber(metrics.dailyEstimatesCreated)}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Estimates Created</p>
-        </div>
-        <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; text-align: center;">
-          <p style="margin: 0; font-size: 28px; font-weight: 700; color: #1e3a8a;">${formatNumber(metrics.dailyNewCustomers)}</p>
-          <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">New Customers</p>
-        </div>
-      </div>
+    <div style="padding: 16px 20px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Yesterday's Numbers</h2>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 2px 0 0 0;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatCurrency(metrics.dailyRevenue)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Revenue</p>
+          </td>
+          <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatNumber(metrics.dailySalesCount)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Orders Completed</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="width: 50%; padding: 6px; text-align: center; background-color: #f9fafb; border-radius: 0 0 0 2px;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_GRAY};">${formatNumber(metrics.dailyEstimatesCreated)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Estimates Created</p>
+          </td>
+          <td style="width: 50%; padding: 6px; text-align: center; background-color: #f9fafb; border-radius: 0 0 2px 0;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_GRAY};">${formatNumber(metrics.dailyNewCustomers)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">New Customers</p>
+          </td>
+        </tr>
+      </table>
     </div>
 
     ${highlights.length > 0 ? `
     <!-- Highlights -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">⭐ Highlights</h2>
-      <ul style="margin: 0; padding: 0 0 0 20px; color: #374151;">
-        ${highlights.map(h => `<li style="margin-bottom: 8px;">${h.description}</li>`).join('')}
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Highlights</h2>
+      <ul style="margin: 0; padding: 0 0 0 16px; color: #374151; font-size: 13px;">
+        ${highlights.map(h => `<li style="margin-bottom: 4px;">${h.description}</li>`).join('')}
       </ul>
+    </div>
+    ` : ''}
+
+    ${aiInsights.length > 0 ? `
+    <!-- AI Insights -->
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Sales Insights</h2>
+      ${renderAIInsights(aiInsights)}
     </div>
     ` : ''}
 
     ${pmPerformance.length > 0 ? `
     <!-- PM Performance -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">👷 PM Performance</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">PM Performance</h2>
       <table style="width: 100%; border-collapse: collapse;">
         <thead>
           <tr style="background-color: #f3f4f6;">
-            <th style="text-align: left; padding: 8px; font-size: 14px; color: #6b7280;">PM</th>
-            <th style="text-align: center; padding: 8px; font-size: 14px; color: #6b7280;">Orders</th>
-            <th style="text-align: right; padding: 8px; font-size: 14px; color: #6b7280;">Revenue</th>
+            <th style="text-align: left; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">PM</th>
+            <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Orders</th>
+            <th style="text-align: right; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Revenue</th>
           </tr>
         </thead>
         <tbody>
           ${pmPerformance.map(pm => `
             <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 8px; color: #374151;">${pm.name}</td>
-              <td style="padding: 8px; text-align: center; color: #374151;">${formatNumber(pm.ordersCompleted)}</td>
-              <td style="padding: 8px; text-align: right; color: #374151;">${formatCurrency(pm.revenue)}</td>
+              <td style="padding: 6px; font-size: 13px; color: #374151;">${pm.name}</td>
+              <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(pm.ordersCompleted)}</td>
+              <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151;">${formatCurrency(pm.revenue)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -485,22 +566,22 @@ export async function generateDailyDigestWithMockFallback(
 
     ${bdPerformance.length > 0 ? `
     <!-- BD Performance -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">💼 BD Performance</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">BD Performance</h2>
       <table style="width: 100%; border-collapse: collapse;">
         <thead>
           <tr style="background-color: #f3f4f6;">
-            <th style="text-align: left; padding: 8px; font-size: 14px; color: #6b7280;">BD</th>
-            <th style="text-align: center; padding: 8px; font-size: 14px; color: #6b7280;">Orders</th>
-            <th style="text-align: right; padding: 8px; font-size: 14px; color: #6b7280;">Revenue</th>
+            <th style="text-align: left; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">BD</th>
+            <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Orders</th>
+            <th style="text-align: right; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Revenue</th>
           </tr>
         </thead>
         <tbody>
           ${bdPerformance.map(bd => `
             <tr style="border-bottom: 1px solid #e5e7eb;">
-              <td style="padding: 8px; color: #374151;">${bd.name}</td>
-              <td style="padding: 8px; text-align: center; color: #374151;">${formatNumber(bd.ordersCompleted)}</td>
-              <td style="padding: 8px; text-align: right; color: #374151;">${formatCurrency(bd.revenue)}</td>
+              <td style="padding: 6px; font-size: 13px; color: #374151;">${bd.name}</td>
+              <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(bd.ordersCompleted)}</td>
+              <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151;">${formatCurrency(bd.revenue)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -509,8 +590,8 @@ export async function generateDailyDigestWithMockFallback(
     ` : ''}
 
     <!-- Monthly Progress -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">📅 Monthly Progress</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Monthly Progress</h2>
       ${renderProgressBar(metrics.monthToDateRevenue, Number(monthly.salesRevenue), 'Revenue')}
       ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'Sales Count')}
       ${renderProgressBar(metrics.monthToDateEstimatesCreated, monthly.estimatesCreated, 'Estimates Created')}
@@ -518,8 +599,8 @@ export async function generateDailyDigestWithMockFallback(
     </div>
 
     <!-- Annual Progress -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">📆 Annual Progress</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Annual Progress</h2>
       ${renderProgressBar(metrics.yearToDateRevenue, Number(annual.salesRevenue), 'Revenue')}
       ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'Sales Count')}
       ${renderProgressBar(metrics.yearToDateEstimatesCreated, annual.estimatesCreated, 'Estimates Created')}
@@ -527,15 +608,16 @@ export async function generateDailyDigestWithMockFallback(
     </div>
 
     <!-- AI Quote/Joke -->
-    <div style="padding: 0 24px 24px;">
-      <h2 style="margin: 0 0 16px 0; color: #1e3a8a; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">💡 Daily Inspiration</h2>
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Daily Inspiration</h2>
       ${renderAIContent(aiContent)}
     </div>
 
     <!-- Footer -->
-    <div style="background-color: #1e3a8a; padding: 24px; text-align: center;">
-      <p style="margin: 0; color: #bfdbfe; font-size: 14px;">🐕 Retriever Daily Digest</p>
-      <p style="margin: 8px 0 0 0; color: #93c5fd; font-size: 12px;">BooneGraphics Internal Sales Tool</p>
+    <div style="background-color: ${BRAND_RED_DARK}; padding: 16px; text-align: center;">
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; filter: brightness(0) invert(1); opacity: 0.9;" />
+      <p style="margin: 0; color: rgba(255,255,255,0.9); font-size: 12px;">Retriever Daily Digest</p>
+      <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.7); font-size: 11px;">BooneGraphics Internal Sales Tool</p>
     </div>
   </div>
 </body>
@@ -562,7 +644,7 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
     month: 'short',
     day: 'numeric',
   });
-  const subject = `🐕 Retriever Daily Digest - ${dateStr}`;
+  const subject = `Retriever Daily Digest - ${dateStr}`;
 
   for (const recipient of recipients) {
     try {

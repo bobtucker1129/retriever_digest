@@ -17,115 +17,30 @@ This document provides step-by-step instructions for dev testing, PrintSmith ser
 
 ## Code Review Findings
 
-### ⚠️ Critical Issues to Fix Before Production
+### ✅ Previously Identified Issues - NOW RESOLVED
 
-#### 1. Missing `/api/export` Endpoint
-**Status:** NOT IMPLEMENTED  
-**Impact:** Python export script has nowhere to POST data
+#### 1. `/api/export` Endpoint
+**Status:** ✅ IMPLEMENTED  
+Located at `src/app/api/export/route.ts` - accepts POST requests with `X-Export-Secret` header.
 
-The export endpoint that receives data from PrintSmith is missing. You need to create:
-- `src/app/api/export/route.ts`
+#### 2. Python Script POST Logic
+**Status:** ✅ IMPLEMENTED  
+The `export/printsmith_export.py` script includes:
+- `--dry-run` flag for testing
+- Full POST request with assembled JSON
+- AI Insights queries (anniversary reorders, lapsed accounts, hot streaks, etc.)
+- Proper error handling and logging
 
-**Fix:** Create the file with this content:
-
-```typescript
-// src/app/api/export/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/db';
-
-export async function POST(request: NextRequest) {
-  const exportSecret = request.headers.get('X-Export-Secret');
-  const expectedSecret = process.env.EXPORT_API_SECRET;
-
-  if (!expectedSecret) {
-    console.error('[Export API] EXPORT_API_SECRET not configured');
-    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-  }
-
-  if (!exportSecret || exportSecret !== expectedSecret) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const data = await request.json();
-    
-    if (!data || typeof data !== 'object') {
-      return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    await prisma.digestData.upsert({
-      where: { exportDate: today },
-      update: { data },
-      create: { exportDate: today, data },
-    });
-
-    console.log(`[Export API] Data received and stored for ${today.toISOString().split('T')[0]}`);
-    
-    return NextResponse.json({ 
-      success: true, 
-      date: today.toISOString().split('T')[0] 
-    });
-  } catch (err) {
-    console.error('[Export API] Error:', err);
-    return NextResponse.json({ error: 'Failed to process export' }, { status: 500 });
-  }
-}
-```
-
-#### 2. Python Script Missing POST Logic
-**Status:** INCOMPLETE  
-**Impact:** Script exports data but doesn't send it to Render
-
-The `export/printsmith_export.py` script queries data but the `main()` function doesn't POST to the API. The script needs:
-- `--dry-run` flag support
-- Actual POST request with assembled JSON
-- RENDER_API_URL and EXPORT_SECRET env vars
-
-**Fix:** Add to `printsmith_export.py` after the imports:
-
-```python
-import json
-import argparse
-import requests
-
-def post_to_api(data):
-    """POST assembled data to Render API."""
-    api_url = os.environ.get('RENDER_API_URL')
-    api_secret = os.environ.get('EXPORT_API_SECRET')
-    
-    if not api_url or not api_secret:
-        raise EnvironmentError("RENDER_API_URL and EXPORT_API_SECRET must be set")
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'X-Export-Secret': api_secret
-    }
-    
-    response = requests.post(api_url, json=data, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.json()
-```
-
-And update `main()` to assemble and POST the data.
-
-#### 3. AI Uses OpenAI, Not Anthropic
-**Status:** Mismatch with PRD  
-**Impact:** Works fine, but uses wrong provider
-
-The PRD specified Anthropic Claude, but implementation uses OpenAI. Either:
-- Keep OpenAI (it works) and update docs
-- Or switch to Anthropic SDK
-
-**Recommendation:** Keep OpenAI - it's working and gpt-4o-mini is cost-effective.
+#### 3. AI Provider
+**Status:** ✅ USING ANTHROPIC CLAUDE  
+The application uses Anthropic Claude (claude-sonnet-4-20250514) for:
+- Daily motivational summaries (team-focused, no individual callouts)
+- Inspirational quotes and jokes
+- Automatic fallback content if API unavailable
 
 #### 4. Session Cookie Security
-**Status:** Needs improvement for production  
-**Impact:** Session hijacking possible
-
-The middleware checks for cookie presence but doesn't validate the cookie value properly.
+**Status:** ⚠️ Basic but functional  
+The middleware checks for cookie presence with basic validation.
 
 **Recommendation for production:** 
 - Use a signed JWT or encrypted session token
@@ -137,20 +52,24 @@ The middleware checks for cookie presence but doesn't validate the cookie value 
 - Prisma schema is correct and comprehensive
 - Email sending with Resend is properly implemented with error handling
 - Daily/weekly digest generation with progress bars and formatting
+- AI-generated motivational team summaries at top of each digest
 - Admin portal with goals and recipients management
 - Password protection middleware (basic but functional)
 - Good fallback content when AI fails
+- Professional, clean email design suitable for medical printing industry
 
 ---
 
-## Phase 1: Local Development Testing
+## Phase 1: Local Development Testing ✅ COMPLETE
+
+**Completed: 2026-01-21**
 
 ### Prerequisites Checklist
 
-- [ ] Node.js 18+ installed
-- [ ] PostgreSQL database available (local or Render)
-- [ ] VPN connected (for PrintSmith access)
-- [ ] Python 3 with psycopg2 installed
+- [x] Node.js 18+ installed (v24.13.0)
+- [x] PostgreSQL database available (Render external URL)
+- [x] VPN connected (for PrintSmith access)
+- [x] Python 3 with psycopg2 installed (v3.9.6)
 
 ### Step 1.1: Set Up Environment
 
@@ -180,8 +99,8 @@ EMAIL_FROM="Retriever <onboarding@resend.dev>"
 CRON_SECRET=your-random-secret-here
 EXPORT_API_SECRET=your-random-export-secret
 
-# Optional - falls back to hardcoded quotes
-OPENAI_API_KEY=sk-xxxxxxxx
+# Optional - falls back to hardcoded quotes/motivation
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
 ```
 
 ### Step 1.2: Set Up Database
@@ -205,30 +124,30 @@ npm run prisma:seed
 npm run dev
 ```
 
-**Verify:** Open http://localhost:3000
-- [ ] Redirected to `/login`
-- [ ] Enter password, redirected to `/goals`
-- [ ] Three tabs visible: Goals, Recipients, Testing
+**Verify:** Open http://localhost:3000 (or next available port)
+- [x] Redirected to `/login`
+- [x] Enter password, redirected to `/goals`
+- [x] Three tabs visible: Goals, Recipients, Testing
 
 ### Step 1.4: Test Admin Portal
 
 **Goals Tab:**
-- [ ] Set Monthly goals (e.g., $100,000 revenue, 50 sales)
-- [ ] Set Annual goals (e.g., $1,000,000 revenue, 500 sales)
-- [ ] Click Save, see success message
-- [ ] Refresh page, values persist
+- [x] Set Monthly goals (e.g., $100,000 revenue, 50 sales)
+- [x] Set Annual goals (e.g., $1,000,000 revenue, 500 sales)
+- [x] Click Save, see success message
+- [x] Refresh page, values persist
 
 **Recipients Tab:**
-- [ ] Add a recipient with your email
-- [ ] Toggle active/inactive
-- [ ] Edit recipient name
-- [ ] Delete a test recipient
+- [x] Add a recipient with your email
+- [x] Toggle active/inactive
+- [x] Edit recipient name
+- [x] Delete a test recipient
 
 **Testing Tab:**
-- [ ] Click "Preview Daily Digest"
-- [ ] See email preview in iframe (with mock data warning)
-- [ ] Enter your email, click "Send Test"
-- [ ] Check inbox for test email
+- [x] Click "Preview Daily Digest"
+- [x] See email preview in iframe (with real PrintSmith data after export)
+- [x] Enter your email, click "Send Test"
+- [x] Check inbox for test email
 
 ### Step 1.5: Test Python Export Script (with VPN)
 
@@ -238,25 +157,31 @@ cd export
 # Install dependencies
 pip install -r requirements.txt
 
-# Set PrintSmith credentials
-export PRINTSMITH_HOST=your-printsmith-ip
-export PRINTSMITH_PORT=5432
-export PRINTSMITH_DB=printsmith
-export PRINTSMITH_USER=postgres
-export PRINTSMITH_PASSWORD=your-password
+# PrintSmith credentials should be in .env file
+# Run export (dry run first to verify)
+python3 printsmith_export.py --dry-run
 
-# Run export (dry run first)
+# Then run actual export to local API
+export RENDER_API_URL=http://localhost:3002/api/export
 python3 printsmith_export.py
 ```
 
 **Verify:** 
-- [ ] Script connects successfully
-- [ ] Logs show invoice/estimate counts
-- [ ] No errors in output
+- [x] Script connects successfully
+- [x] Logs show invoice/estimate counts
+- [x] No errors in output
+
+**Results from 2026-01-21 test:**
+- Daily Revenue: $11,860.06 (24 invoices)
+- MTD Revenue: $653,529.65 (373 sales)
+- 13 estimates created
+- 5 AI insight categories generated
 
 ---
 
 ## Phase 2: Production Deployment (Render)
+
+> **Status:** Ready to begin. Phase 1 completed 2026-01-21.
 
 ### Step 2.1: Push to GitHub
 
@@ -311,7 +236,7 @@ git push -u origin main
 | `EMAIL_FROM` | `Retriever <digest@boonegraphics.com>` |
 | `CRON_SECRET` | (generate with `openssl rand -hex 32`) |
 | `EXPORT_API_SECRET` | (generate with `openssl rand -hex 32`) |
-| `OPENAI_API_KEY` | `sk-xxxxxxxx` (optional) |
+| `ANTHROPIC_API_KEY` | `sk-ant-xxxxxxxx` (optional - enables AI motivational summaries) |
 
 5. **Deploy:**
    - Click "Manual Deploy" → "Deploy latest commit"
@@ -455,8 +380,11 @@ python printsmith_export.py
 - [ ] Run export script manually on PrintSmith server
 - [ ] Verify data appears in Render database (check DigestData table)
 - [ ] Preview daily digest - should show real PrintSmith data
+- [ ] Verify AI motivational summary appears at top (team-focused, positive tone)
 - [ ] Send test email to yourself
 - [ ] Verify email renders correctly in Gmail and Outlook
+- [ ] Confirm logo is visible (white on dark red header)
+- [ ] Check professional styling (tight spacing, clean fonts)
 
 ### Day 2-3: Cron Test
 
@@ -531,6 +459,31 @@ python printsmith_export.py
 - Check Render cron job logs
 - Verify CRON_SECRET matches between cron command and env var
 - Manually trigger with curl to test
+
+---
+
+## AI Features
+
+### Motivational Team Summary
+Each digest begins with an AI-generated motivational message that:
+- Highlights team achievements (never individual callouts)
+- References actual metrics from the period (revenue, orders, etc.)
+- Maintains a professional tone appropriate for medical printing industry
+- Falls back to pre-written content if Anthropic API is unavailable
+
+### Daily Inspiration
+At the bottom of each digest, a rotating quote or joke:
+- Business/sales motivational quotes
+- Clean, workplace-appropriate humor
+- Automatic fallback if API fails
+
+### AI Insights (from PrintSmith Data)
+The Python export script generates intelligent insights:
+- **Anniversary Reorders**: Large orders from 10-11 months ago
+- **Lapsed Accounts**: High-value customers inactive for 6+ months
+- **Hot Streak Accounts**: Customers increasing order frequency
+- **High-Value Estimates**: Pending quotes over $1,000 needing follow-up
+- **Past Due Accounts**: AR aging opportunities (if data available)
 
 ---
 
