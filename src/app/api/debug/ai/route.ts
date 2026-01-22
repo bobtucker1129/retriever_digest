@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
+// Force dynamic rendering - don't cache at build time
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   

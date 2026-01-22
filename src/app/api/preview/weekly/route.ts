@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { generateWeeklyDigestWithMockFallback } from '@/lib/weekly-digest';
 
+// Force dynamic rendering - don't cache at build time
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const { html, isMockData } = await generateWeeklyDigestWithMockFallback('Preview User');
