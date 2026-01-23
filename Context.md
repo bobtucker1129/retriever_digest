@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-01-23  
 > **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** Fresh Daily Insights system implemented - account names in highlights, day rotation, deduplication
+> **Status:** All enhancements deployed - weekly highlights fixed, AI logging added, ready for PrintSmith server setup
 
 ---
 
@@ -209,6 +209,23 @@ EXPORT_API_SECRET=...              # Must match web app
 
 ## Session History
 
+### 2026-01-23 (Session 7): Weekly Digest Audit & AI Logging
+- **Problem 1:** Weekly highlights not showing bold account names (showing old data format)
+- **Solution:** Modified `aggregateHighlights()` to prioritize recent records (newest first)
+- **Problem 2:** AI quote/joke always using fallback content in production
+- **Solution:** Added comprehensive logging to `generateAIContent()` to diagnose issues
+  - Logs API key presence, content type, API call, response parsing
+  - Matches logging pattern used in `generateMotivationalSummary()`
+- **Testing:** Ran fresh export locally, confirmed both daily and weekly digests show:
+  - Bold account names in highlights: `<strong>Customer Name</strong> - Job Description`
+  - Fresh AI-generated quotes and jokes (not fallback)
+- **Deployed:** Committed and pushed all changes to Render
+- Updated mock data in both digest files to use proper highlight format
+
+#### Key Finding
+- Production AI fallback was likely due to `ANTHROPIC_API_KEY` not being set in Render environment
+- Weekly highlights issue was due to aggregating older records first (before account name enhancement)
+
 ### 2026-01-23 (Session 6): Account Names & Fresh Daily Insights System
 - **Enhancement 1:** Added account names (from `account.title`) to HIGHLIGHTS and Sales Insights sections
   - Updated all queries to JOIN `account` table
@@ -310,17 +327,17 @@ EXPORT_API_SECRET=...              # Must match web app
 - ✅ Queries prioritize newly-eligible items
 
 ### Remaining Tasks
-1. **Commit changes** - 7 modified files + 1 new file with all enhancements
-2. **Deploy to Render** - Push updated code to production
-3. **Set up Render cron jobs** for automated daily/weekly digests
-4. **Phase 3**: Install export script on PrintSmith Windows server
-5. **Phase 4**: End-to-end testing
-6. **Phase 5**: Go live
+1. ✅ **Commit changes** - All enhancements committed and pushed
+2. ✅ **Deploy to Render** - Auto-deployed via GitHub push
+3. **Verify `ANTHROPIC_API_KEY`** in Render environment variables
+4. **Set up Render cron jobs** for automated daily/weekly digests
+5. **Phase 3**: Install export script on PrintSmith Windows server
+6. **Phase 4**: End-to-end testing
+7. **Phase 5**: Go live
 
 ### Optional Improvements
-- Weekly digest could use similar rich context treatment
 - Add more program accounts to exclusion list as needed
-- Daily Inspiration (quote/joke) could be made more dynamic
+- Weekly digest could use `generateRichMotivationalSummary()` for more specific content
 
 ---
 
