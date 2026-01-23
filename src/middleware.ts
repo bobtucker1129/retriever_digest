@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const SESSION_COOKIE_NAME = 'retriever_session';
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/export', '/api/digest', '/api/debug'];
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/export', '/api/digest', '/api/debug', '/api/preview'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

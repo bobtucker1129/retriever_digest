@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-01-22  
+> **Last Updated:** 2026-01-23  
 > **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** Deployed to Render, AI content working, needs AI improvements
+> **Status:** Fresh Daily Insights system implemented - account names in highlights, day rotation, deduplication
 
 ---
 
@@ -105,6 +105,28 @@ The PrintSmith PostgreSQL database has a specific structure that differs from ty
 - **`estimate`** table: Only contains `id` and `isdeleted` - similar to invoice
 - **`account`** table: Customer accounts, uses `title` for account name (not `accountname`)
 - **`salesrep`** table: Sales reps with `name` column (not `salesrep`)
+- **`salesbase`** table: Daily closeout totals (join to `dailysales` on `id`)
+- **`dailysales`** table: Links salesbase to dates via `closeoutdate`
+
+#### Revenue Calculation (Learned 2026-01-23)
+For revenue goals, use `salesbase.totalsales` NOT `invoicebase.subtotal`:
+- `invoicebase.subtotal` includes postage and shipping
+- `salesbase.totalsales` excludes postage/shipping - matches PrintSmith "Total Sales"
+
+```sql
+-- Correct way to get revenue for date range
+SELECT COALESCE(SUM(sb.totalsales), 0) AS revenue
+FROM salesbase sb
+INNER JOIN dailysales ds ON sb.id = ds.id
+WHERE DATE(sb.closeoutdate) >= '2026-01-01'
+  AND DATE(sb.closeoutdate) <= '2026-01-22'
+  AND sb.isdeleted = false
+```
+
+#### Program Work Accounts (Excluded from Insights)
+These accounts have predictable scheduled orders and are excluded from highlights/insights:
+- Strategic Healthcare Programs (account_id: 20960)
+- CenCal Health (account_id: 17204)
 
 #### Key Column Mappings
 
@@ -187,6 +209,59 @@ EXPORT_API_SECRET=...              # Must match web app
 
 ## Session History
 
+### 2026-01-23 (Session 6): Account Names & Fresh Daily Insights System
+- **Enhancement 1:** Added account names (from `account.title`) to HIGHLIGHTS and Sales Insights sections
+  - Updated all queries to JOIN `account` table
+  - Format: `<strong>Customer Name</strong> - Job Description - $Amount`
+  - Example: "Completed order for **Santa Maria Elks** - February Elks Horn Newsletter - $3,791.89"
+- **Enhancement 2:** Implemented Fresh Daily Insights System to prevent repetitive content
+  - Added `shownInsights` tracking in export payload (account IDs, names, insight types)
+  - Created `/api/export/recent` endpoint to fetch recently shown accounts
+  - All insight queries now accept `exclude_account_ids` parameter
+  - Queries prioritize newly-eligible items (most recently lapsed first, newest estimates first)
+  - Day-of-week rotation: 2-3 insight types per day instead of all 5
+    - Mon: Anniversary Reorders, Hot Streaks, High-Value Estimates
+    - Tue: Lapsed Accounts, Past Due
+    - Wed: Hot Streaks, Anniversary Reorders
+    - Thu: High-Value Estimates, Lapsed Accounts
+    - Fri: Past Due, Hot Streaks, Anniversary Reorders
+  - AI context now includes recent digest headlines and mentioned accounts
+  - AI prompt explicitly told to avoid repeating recent headlines/accounts
+
+#### New Files Created
+- `src/app/api/export/recent/route.ts` - GET endpoint for recently shown account IDs
+
+### 2026-01-23 (Session 5): Revenue Fix & Program Account Exclusion
+- **Problem 1:** YTD revenue showing $611K but should be $442K - was including postage ($168K) and shipping ($6.5K)
+- **Solution:** Created `get_revenue_from_salesbase()` function to query `salesbase.totalsales` which excludes postage/shipping
+- Updated `get_mtd_metrics()`, `get_ytd_metrics()`, and `get_completed_invoices()` to use salesbase for revenue totals
+- Revenue now matches PrintSmith "Total Sales" figure exactly: **$442,031.06**
+- **Problem 2:** Program work accounts (Strategic Healthcare Programs, CenCal Health) dominated highlights and insights
+- **Solution:** Added `EXCLUDED_ACCOUNT_IDS` constant with account IDs (20960, 17204)
+- Updated `_generate_highlights()` to filter out program accounts
+- Updated all AI insight queries to exclude program accounts: anniversary reorders, lapsed accounts, hot streaks, high-value estimates, past due accounts
+- Highlights now show non-program orders (e.g., MOLLI Recall $7,894 instead of HHCAHPS $159K)
+
+#### New PrintSmith Knowledge Discovered
+- `salesbase` table contains daily closeout totals
+- `salesbase.totalsales` = actual sales (excludes postage/shipping) - USE THIS FOR GOALS
+- `salesbase.shipping` = shipping charges
+- `salesbase.totalother` = postage + shipping + other
+- Join `salesbase` to `dailysales` on `id` for date filtering via `closeoutdate`
+
+### 2026-01-22 (Session 4): AI Content Deep Rewrite
+- **Problem:** AI content was generic garbage ("Excellent Teamwork! Great job team!") - nobody would read after day 3
+- **Solution:** Complete rewrite of AI context system to pass ALL available data to the AI
+- Created `RichAIContext` interface with comprehensive data fields
+- Added `getPreviousDayDigestData()` for day-over-day comparisons
+- Added `buildRichAIContext()` to aggregate: metrics, comparisons, goals, pace, insights, top performers
+- Created `generateRichMotivationalSummary()` with structured prompt that requires specific references
+- Added Python queries: `get_daily_pm_performance()`, `get_daily_bd_performance()`
+- Export now includes `biggestOrder`, `topPM`, `topBD` explicit fields
+- **Result:** AI now generates content like:
+  > "Jim crushed it with 6 orders totaling $6,942 while Paige led BD with 9 orders worth $8,292. We're ahead of pace at 80% of monthly goal. Quick win: HHCAHPS anniversary reorders ($157,750) are due."
+- Added `/api/preview` to public paths for easier testing
+
 ### 2026-01-22 (Session 3): Render Deployment & AI Fixes
 - Deployed to Render at https://retriever-digest.onrender.com
 - Fixed revenue discrepancy ($653K→$612K) by adding JOIN to `invoice` table
@@ -220,36 +295,32 @@ EXPORT_API_SECRET=...              # Must match web app
 
 ## Next Steps
 
-### PRIORITY: AI Content Improvements
-The current AI content is too repetitive and lacks context. Users won't read it after day 3. Need to:
+### Revenue & Insights ✅ COMPLETE
+- ✅ Revenue now uses `salesbase.totalsales` (excludes postage/shipping)
+- ✅ YTD/MTD/Daily revenue matches PrintSmith "Total Sales" exactly
+- ✅ Program accounts (Strategic Healthcare, CenCal) excluded from highlights/insights
+- ✅ Highlights now show actionable non-program orders with account names
+- ✅ AI insights focus on business development opportunities
 
-1. **Add goal-awareness to AI prompts**
-   - Pass monthly/annual goals to AI
-   - Include progress percentages ("71% to goal with 10 days left")
-   - AI can say "on track" or "need to push" based on progress
+### Fresh Insights System ✅ COMPLETE
+- ✅ Account names displayed in bold before job descriptions
+- ✅ Day-of-week rotation for insight types (2-3 per day)
+- ✅ Recently shown accounts excluded for 14 days
+- ✅ AI context includes recent headlines to avoid repetition
+- ✅ Queries prioritize newly-eligible items
 
-2. **Add trend/comparison context**
-   - Pass yesterday's numbers for comparison
-   - Include week-over-week trends
-   - AI can reference improvements or declines
+### Remaining Tasks
+1. **Commit changes** - 7 modified files + 1 new file with all enhancements
+2. **Deploy to Render** - Push updated code to production
+3. **Set up Render cron jobs** for automated daily/weekly digests
+4. **Phase 3**: Install export script on PrintSmith Windows server
+5. **Phase 4**: End-to-end testing
+6. **Phase 5**: Go live
 
-3. **Fix Daily Inspiration (quote/joke)**
-   - Currently shows same content repeatedly
-   - Needs same caching fixes as motivational summary
-
-4. **Review all AI sections:**
-   - Motivational summary (top) ✅ Fixed basic caching
-   - Highlights section
-   - Sales insights
-   - Hot streaks
-   - Anniversary reorders
-   - Daily inspiration (quote/joke) - NOT WORKING
-
-### Other Tasks
-5. **Set up Render cron jobs** for automated daily/weekly digests
-6. **Phase 3**: Install export script on PrintSmith Windows server
-7. **Phase 4**: End-to-end testing
-8. **Phase 5**: Go live
+### Optional Improvements
+- Weekly digest could use similar rich context treatment
+- Add more program accounts to exclusion list as needed
+- Daily Inspiration (quote/joke) could be made more dynamic
 
 ---
 

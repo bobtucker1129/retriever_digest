@@ -122,7 +122,11 @@ function aggregatePerformanceData(
 function aggregateHighlights(digestDataRecords: { data: unknown }[]): string[] {
   const allHighlights: string[] = [];
 
-  for (const record of digestDataRecords) {
+  // Process records in reverse order (most recent first) so newer highlights 
+  // with proper formatting (account names) are prioritized
+  const reversedRecords = [...digestDataRecords].reverse();
+  
+  for (const record of reversedRecords) {
     const data = record.data as DigestDataPayload;
     if (data?.highlights && Array.isArray(data.highlights)) {
       for (const highlight of data.highlights) {
@@ -644,9 +648,9 @@ const MOCK_WEEKLY_DATA: WeeklyDigestData = {
   monthToDate: { revenue: 325000, salesCount: 120, estimatesCreated: 75, newCustomers: 18 },
   yearToDate: { revenue: 1450000, salesCount: 520, estimatesCreated: 310, newCustomers: 85 },
   topHighlights: [
-    'Biggest order this week: $12,500 from ABC Corp',
-    'New enterprise customer: XYZ Industries',
-    'Steve closed 5 orders on Monday alone!',
+    'Completed order for <strong>ABC Corp</strong> - Annual Report Printing - $12,500.00',
+    'Completed order for <strong>XYZ Industries</strong> - Trade Show Banners - $8,750.00',
+    'New estimate for <strong>Metro Hospital</strong> - Surgical Kit Labels - $5,200.00',
   ],
 };
 

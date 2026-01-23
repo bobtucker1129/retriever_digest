@@ -2,7 +2,21 @@
 
 import prisma from '@/lib/db';
 import { GoalType } from '@/generated/prisma/client';
-import { generateAIContent, generateMotivationalSummary, type AIContent, type MotivationalSummary, type DigestMetricsForAI } from '@/lib/ai-content';
+import { 
+  generateAIContent, 
+  generateMotivationalSummary,
+  generateRichMotivationalSummary, 
+  type AIContent, 
+  type MotivationalSummary, 
+  type DigestMetricsForAI,
+  type RichAIContext,
+  type DayComparison,
+  type GoalProgress,
+  type NotableOrder,
+  type TopPerformer,
+  type AIInsight as AIInsightFromContent,
+  type RecentDigestSummary,
+} from '@/lib/ai-content';
 import { sendEmail } from '@/lib/email';
 
 // BooneGraphics Brand Colors
@@ -184,9 +198,282 @@ export async function getLatestDigestData(): Promise<DigestDataPayload | null> {
   return digestData.data as unknown as DigestDataPayload;
 }
 
+/**
+ * Get the previous day's digest data for comparison calculations.
+ * Returns the second most recent DigestData record.
+ */
+export async function getPreviousDayDigestData(): Promise<DigestDataPayload | null> {
+  const digestRecords = await prisma.digestData.findMany({
+    orderBy: { exportDate: 'desc' },
+    take: 2,
+  });
+
+  // Return the second record (previous day) if it exists
+  if (digestRecords.length < 2) {
+    return null;
+  }
+
+  return digestRecords[1].data as unknown as DigestDataPayload;
+}
+
+interface ShownInsightsData {
+  date: string;
+  accountIds: number[];
+  accountNames: string[];
+  insightTypes: string[];
+}
+
+interface DigestDataWithShownInsights {
+  shownInsights?: ShownInsightsData;
+  motivationalHeadline?: string;
+}
+
+/**
+ * Get recent digest summaries for AI context.
+ * Returns the last N days of digest headlines and mentioned accounts.
+ */
+export async function getRecentDigestSummaries(days: number = 7): Promise<RecentDigestSummary[]> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  cutoffDate.setHours(0, 0, 0, 0);
+
+  const recentDigests = await prisma.digestData.findMany({
+    where: {
+      exportDate: {
+        gte: cutoffDate,
+      },
+    },
+    orderBy: { exportDate: 'desc' },
+  });
+
+  return recentDigests.map(digest => {
+    const data = digest.data as unknown as DigestDataWithShownInsights;
+    return {
+      date: digest.exportDate.toISOString().split('T')[0],
+      headline: data?.motivationalHeadline,
+      accountNames: data?.shownInsights?.accountNames || [],
+    };
+  });
+}
+
+/**
+ * Build the rich context object for AI with all available data.
+ * This gives the AI everything it needs to generate insightful, specific content.
+ */
+export async function buildRichAIContext(
+  currentData: DigestDataPayload | null,
+  previousData: DigestDataPayload | null,
+  // Accept any type that can be converted to number (Prisma Decimal, bigint, number)
+  monthlyGoal: { salesRevenue: unknown; salesCount: number } | null,
+  isWeekly: boolean = false
+): Promise<RichAIContext> {
+  const metrics = currentData?.metrics;
+  const today = new Date();
+  
+  // Calculate day comparison
+  let comparison: DayComparison | undefined;
+  if (previousData?.metrics && metrics) {
+    const prevRevenue = previousData.metrics.dailyRevenue || 0;
+    const prevOrders = previousData.metrics.dailySalesCount || 0;
+    const revenueChange = metrics.dailyRevenue - prevRevenue;
+    const revenueChangePercent = prevRevenue > 0 
+      ? Math.round((revenueChange / prevRevenue) * 100) 
+      : 0;
+    
+    comparison = {
+      revenueChange,
+      revenueChangePercent,
+      ordersChange: metrics.dailySalesCount - prevOrders,
+      previousRevenue: prevRevenue,
+      previousOrders: prevOrders,
+    };
+  }
+  
+  // Calculate goal progress
+  let goalProgress: GoalProgress | undefined;
+  if (monthlyGoal && metrics) {
+    const monthlyGoalAmount = Number(monthlyGoal.salesRevenue);
+    const mtdRevenue = metrics.monthToDateRevenue || 0;
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const dayOfMonth = today.getDate();
+    const daysRemaining = daysInMonth - dayOfMonth;
+    const progressPercent = monthlyGoalAmount > 0 
+      ? Math.round((mtdRevenue / monthlyGoalAmount) * 100) 
+      : 0;
+    const amountToGoal = Math.max(0, monthlyGoalAmount - mtdRevenue);
+    const requiredDailyPace = daysRemaining > 0 ? amountToGoal / daysRemaining : 0;
+    const actualDailyPace = dayOfMonth > 0 ? mtdRevenue / dayOfMonth : 0;
+    
+    // Determine pace status
+    let paceStatus: 'ahead' | 'on_track' | 'behind';
+    const expectedProgress = (dayOfMonth / daysInMonth) * monthlyGoalAmount;
+    if (mtdRevenue >= expectedProgress * 1.05) {
+      paceStatus = 'ahead';
+    } else if (mtdRevenue >= expectedProgress * 0.95) {
+      paceStatus = 'on_track';
+    } else {
+      paceStatus = 'behind';
+    }
+    
+    goalProgress = {
+      monthlyGoal: monthlyGoalAmount,
+      monthToDateRevenue: mtdRevenue,
+      progressPercent,
+      daysInMonth,
+      dayOfMonth,
+      daysRemaining,
+      requiredDailyPace: Math.round(requiredDailyPace),
+      actualDailyPace: Math.round(actualDailyPace),
+      paceStatus,
+      amountToGoal: Math.round(amountToGoal),
+    };
+  }
+  
+  // Extract notable orders from highlights or yesterday_invoices
+  const topOrders: NotableOrder[] = [];
+  let biggestOrder: NotableOrder | undefined;
+  
+  // Extended type for raw data with explicit fields from Python export
+  const rawData = currentData as DigestDataPayload & { 
+    yesterday_invoices?: { 
+      invoices?: Array<{
+        account_name: string;
+        subtotal: number;
+        job_description?: string;
+        salesrep?: string;
+      }>;
+    };
+    biggestOrder?: {
+      accountName: string;
+      amount: number;
+      description?: string;
+      salesRep?: string;
+    };
+    topPM?: {
+      name: string;
+      ordersCompleted: number;
+      revenue: number;
+    };
+    topBD?: {
+      name: string;
+      ordersCompleted: number;
+      revenue: number;
+    };
+  };
+  
+  // Use explicit biggestOrder from Python if available
+  if (rawData?.biggestOrder) {
+    biggestOrder = {
+      accountName: rawData.biggestOrder.accountName,
+      amount: rawData.biggestOrder.amount,
+      description: rawData.biggestOrder.description,
+      salesRep: rawData.biggestOrder.salesRep,
+    };
+  }
+  
+  // Get top orders from yesterday_invoices
+  if (rawData?.yesterday_invoices?.invoices) {
+    const invoices = rawData.yesterday_invoices.invoices;
+    // Sort by amount descending and take top 3
+    const sortedInvoices = [...invoices].sort((a, b) => (b.subtotal || 0) - (a.subtotal || 0));
+    
+    for (let i = 0; i < Math.min(3, sortedInvoices.length); i++) {
+      const inv = sortedInvoices[i];
+      const order: NotableOrder = {
+        accountName: inv.account_name || 'Unknown',
+        amount: inv.subtotal || 0,
+        description: inv.job_description,
+        salesRep: inv.salesrep,
+      };
+      topOrders.push(order);
+      // Fallback: use first invoice as biggest if not explicitly set
+      if (i === 0 && !biggestOrder) {
+        biggestOrder = order;
+      }
+    }
+  }
+  
+  // Extract top performers - prefer explicit fields from Python
+  const topPerformers: TopPerformer[] = [];
+  
+  // Use explicit topPM from Python if available
+  if (rawData?.topPM) {
+    topPerformers.push({
+      name: rawData.topPM.name,
+      role: 'PM',
+      ordersCompleted: rawData.topPM.ordersCompleted,
+      revenue: rawData.topPM.revenue,
+    });
+  } else if (currentData?.pmPerformance?.length) {
+    // Fallback: extract from pmPerformance array
+    const sortedPMs = [...currentData.pmPerformance].sort((a, b) => b.revenue - a.revenue);
+    if (sortedPMs[0]) {
+      topPerformers.push({
+        name: sortedPMs[0].name,
+        role: 'PM',
+        ordersCompleted: sortedPMs[0].ordersCompleted,
+        revenue: sortedPMs[0].revenue,
+      });
+    }
+  }
+  
+  // Use explicit topBD from Python if available
+  if (rawData?.topBD) {
+    topPerformers.push({
+      name: rawData.topBD.name,
+      role: 'BD',
+      ordersCompleted: rawData.topBD.ordersCompleted,
+      revenue: rawData.topBD.revenue,
+    });
+  } else if (currentData?.bdPerformance?.length) {
+    // Fallback: extract from bdPerformance array
+    const sortedBDs = [...currentData.bdPerformance].sort((a, b) => b.revenue - a.revenue);
+    if (sortedBDs[0]) {
+      topPerformers.push({
+        name: sortedBDs[0].name,
+        role: 'BD',
+        ordersCompleted: sortedBDs[0].ordersCompleted,
+        revenue: sortedBDs[0].revenue,
+      });
+    }
+  }
+  
+  // Format date string
+  const dateStr = new Date(currentData?.date || today.toISOString().split('T')[0])
+    .toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
+  
+  // Fetch recent digest summaries for AI context (to avoid repetition)
+  const recentDigests = await getRecentDigestSummaries(7);
+  
+  return {
+    dailyRevenue: metrics?.dailyRevenue || 0,
+    dailyOrders: metrics?.dailySalesCount || 0,
+    dailyEstimates: metrics?.dailyEstimatesCreated || 0,
+    dailyNewCustomers: metrics?.dailyNewCustomers || 0,
+    comparison,
+    goalProgress,
+    biggestOrder,
+    topOrders,
+    topPerformers,
+    insights: (currentData?.aiInsights || []) as AIInsight[],
+    isWeekly,
+    dateStr,
+    recentDigests,
+  };
+}
+
 export async function generateDailyDigest(recipientName: string): Promise<string> {
-  const digestData = await getLatestDigestData();
-  const goals = await prisma.goal.findMany();
+  // Fetch all data in parallel for efficiency
+  const [digestData, previousData, goals] = await Promise.all([
+    getLatestDigestData(),
+    getPreviousDayDigestData(),
+    prisma.goal.findMany(),
+  ]);
+  
   const aiContent = await generateAIContent();
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
@@ -217,14 +504,16 @@ export async function generateDailyDigest(recipientName: string): Promise<string
     yearToDateNewCustomers: 0,
   };
 
-  const metricsForAI: DigestMetricsForAI = {
-    revenue: metrics.dailyRevenue,
-    ordersCompleted: metrics.dailySalesCount,
-    estimatesCreated: metrics.dailyEstimatesCreated,
-    newCustomers: metrics.dailyNewCustomers,
-    isWeekly: false,
-  };
-  const motivational = await generateMotivationalSummary(metricsForAI);
+  // Build rich context for AI with all available data
+  const richContext = await buildRichAIContext(
+    digestData,
+    previousData,
+    monthlyGoal ? { salesRevenue: monthlyGoal.salesRevenue, salesCount: monthlyGoal.salesCount } : null,
+    false // isWeekly
+  );
+  
+  // Generate motivational summary with full context
+  const motivational = await generateRichMotivationalSummary(richContext);
 
   const highlights = digestData?.highlights || [];
   const bdPerformance = digestData?.bdPerformance || [];
@@ -402,8 +691,8 @@ const MOCK_DIGEST_DATA: DigestDataPayload = {
     yearToDateNewCustomers: 22,
   },
   highlights: [
-    { type: 'big_order', description: 'Large banner order from ABC Corp - $1,250' },
-    { type: 'new_customer', description: 'Welcome new customer: XYZ Industries' },
+    { type: 'big_order', description: 'Completed order for <strong>ABC Corp</strong> - Large Banner Order - $1,250.00' },
+    { type: 'new_customer', description: 'New estimate for <strong>XYZ Industries</strong> - Business Cards - $450.00' },
   ],
   bdPerformance: [
     { name: 'Alice Brown', ordersCompleted: 3, revenue: 2100.5 },
@@ -438,11 +727,16 @@ const MOCK_DIGEST_DATA: DigestDataPayload = {
 export async function generateDailyDigestWithMockFallback(
   recipientName: string
 ): Promise<{ html: string; isMockData: boolean }> {
-  const digestData = await getLatestDigestData();
+  // Fetch all data in parallel
+  const [digestData, previousData, goals] = await Promise.all([
+    getLatestDigestData(),
+    getPreviousDayDigestData(),
+    prisma.goal.findMany(),
+  ]);
+  
   const isMockData = digestData === null;
   const dataToUse = digestData || MOCK_DIGEST_DATA;
-
-  const goals = await prisma.goal.findMany();
+  
   const aiContent = await generateAIContent();
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
@@ -465,14 +759,16 @@ export async function generateDailyDigestWithMockFallback(
   const aiInsights = dataToUse.aiInsights || [];
   const dateStr = dataToUse.date;
 
-  const metricsForAI: DigestMetricsForAI = {
-    revenue: metrics.dailyRevenue,
-    ordersCompleted: metrics.dailySalesCount,
-    estimatesCreated: metrics.dailyEstimatesCreated,
-    newCustomers: metrics.dailyNewCustomers,
-    isWeekly: false,
-  };
-  const motivational = await generateMotivationalSummary(metricsForAI);
+  // Build rich context for AI - use previous data only if we have real data (not mock)
+  const richContext = await buildRichAIContext(
+    dataToUse,
+    isMockData ? null : previousData,
+    monthlyGoal ? { salesRevenue: monthlyGoal.salesRevenue, salesCount: monthlyGoal.salesCount } : null,
+    false // isWeekly
+  );
+  
+  // Generate motivational summary with full context
+  const motivational = await generateRichMotivationalSummary(richContext);
 
   const html = `
 <!DOCTYPE html>

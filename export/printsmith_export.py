@@ -30,6 +30,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Program work accounts to exclude from highlights and insights
+# These accounts have predictable scheduled orders that would skew results
+# and take focus away from non-program business development
+EXCLUDED_ACCOUNT_IDS = (
+    20960,  # Strategic Healthcare Programs
+    17204,  # CenCal Health
+)
+
 
 def get_connection_config():
     """Read database connection configuration from environment variables."""
@@ -105,20 +113,26 @@ def get_completed_invoices(conn, target_date):
     """
     Query yesterday's completed (posted) invoices.
     Returns list of invoices and calculated totals.
+    
+    Note: Individual invoice amounts use subtotal (includes postage/shipping).
+    The total_revenue comes from salesbase.totalsales (excludes postage/shipping).
     """
     logger.info(f"Querying completed invoices for {target_date}...")
     
     query = """
         SELECT 
             ib.invoicenumber,
+            a.title AS customer_name,
             ib.name AS account_name,
             ib.takenby,
             COALESCE(s.name, '') AS salesrep,
             ib.subtotal,
             ib.weborderexternalid,
-            ib.invoicetitle AS job_description
+            ib.invoicetitle AS job_description,
+            ib.account_id
         FROM invoicebase ib
         JOIN invoice i ON ib.id = i.id
+        LEFT JOIN account a ON ib.account_id = a.id
         LEFT JOIN salesrep s ON ib.salesrep_id = s.id
         WHERE DATE(ib.pickupdate) = %s
           AND ib.onpendinglist = false
@@ -129,7 +143,6 @@ def get_completed_invoices(conn, target_date):
     """
     
     invoices = []
-    total_revenue = Decimal('0.00')
     
     try:
         with conn.cursor() as cur:
@@ -139,26 +152,29 @@ def get_completed_invoices(conn, target_date):
             for row in rows:
                 invoice = {
                     'invoicenumber': row[0],
-                    'account_name': row[1],
-                    'takenby': row[2],
-                    'salesrep': row[3],
-                    'subtotal': float(row[4]) if row[4] else 0.0,
-                    'weborderexternalid': row[5],
-                    'job_description': row[6]
+                    'customer_name': row[1] or 'Unknown',
+                    'account_name': row[2],
+                    'takenby': row[3],
+                    'salesrep': row[4],
+                    'subtotal': float(row[5]) if row[5] else 0.0,
+                    'weborderexternalid': row[6],
+                    'job_description': row[7],
+                    'account_id': row[8]
                 }
                 invoices.append(invoice)
-                if row[4]:
-                    total_revenue += Decimal(str(row[4]))
             
             invoice_count = len(invoices)
             logger.info(f"Found {invoice_count} completed invoices")
-            logger.info(f"Total revenue: ${total_revenue:,.2f}")
-            
-            return {
-                'invoices': invoices,
-                'total_revenue': float(total_revenue),
-                'invoice_count': invoice_count
-            }
+        
+        # Get total revenue from salesbase (excludes postage/shipping)
+        total_revenue = get_revenue_from_salesbase(conn, target_date, target_date)
+        logger.info(f"Daily revenue (from salesbase): ${total_revenue:,.2f}")
+        
+        return {
+            'invoices': invoices,
+            'total_revenue': total_revenue,
+            'invoice_count': invoice_count
+        }
             
     except Exception as e:
         logger.error(f"Error querying invoices: {e}")
@@ -175,11 +191,15 @@ def get_estimates_created(conn, target_date):
     query = """
         SELECT 
             ib.invoicenumber,
+            a.title AS customer_name,
             ib.name AS account_name,
             ib.takenby,
-            ib.subtotal
+            ib.subtotal,
+            ib.invoicetitle AS job_description,
+            ib.account_id
         FROM estimate e
         JOIN invoicebase ib ON e.id = ib.id
+        LEFT JOIN account a ON ib.account_id = a.id
         WHERE DATE(ib.ordereddate) = %s
           AND ib.isdeleted = false
           AND COALESCE(ib.voided, false) = false
@@ -196,9 +216,12 @@ def get_estimates_created(conn, target_date):
             for row in rows:
                 estimate = {
                     'invoicenumber': row[0],
-                    'account_name': row[1],
-                    'takenby': row[2],
-                    'subtotal': float(row[3]) if row[3] else 0.0
+                    'customer_name': row[1] or 'Unknown',
+                    'account_name': row[2],
+                    'takenby': row[3],
+                    'subtotal': float(row[4]) if row[4] else 0.0,
+                    'job_description': row[5],
+                    'account_id': row[6]
                 }
                 estimates.append(estimate)
             
@@ -312,10 +335,148 @@ def get_bd_open_invoices(conn):
         raise
 
 
+def get_daily_pm_performance(conn, target_date):
+    """
+    Query completed invoices for the target date grouped by PM.
+    Returns list of PMs with their completed orders and revenue for the day.
+    """
+    logger.info(f"Querying daily PM performance for {target_date}...")
+    
+    valid_pms = ('Jim', 'Steve', 'Shelley', 'Ellie', 'Ellie Lemire')
+    
+    query = """
+        SELECT 
+            ib.takenby AS pm_name,
+            COUNT(*) AS completed_count,
+            COALESCE(SUM(ib.subtotal), 0) AS completed_revenue
+        FROM invoicebase ib
+        JOIN invoice i ON ib.id = i.id
+        WHERE DATE(ib.pickupdate) = %s
+          AND ib.onpendinglist = false
+          AND ib.isdeleted = false
+          AND i.isdeleted = false
+          AND COALESCE(ib.voided, false) = false
+          AND ib.takenby IN %s
+        GROUP BY ib.takenby
+        ORDER BY completed_revenue DESC
+    """
+    
+    pm_data = []
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (target_date, valid_pms))
+            rows = cur.fetchall()
+            
+            for row in rows:
+                pm = {
+                    'pm_name': row[0],
+                    'completed_count': row[1],
+                    'completed_revenue': float(row[2]) if row[2] else 0.0
+                }
+                pm_data.append(pm)
+            
+            logger.info(f"Found daily performance for {len(pm_data)} PMs")
+            return pm_data
+            
+    except Exception as e:
+        logger.error(f"Error querying daily PM performance: {e}")
+        raise
+
+
+def get_daily_bd_performance(conn, target_date):
+    """
+    Query completed invoices for the target date grouped by BD.
+    Returns list of BDs with their completed orders and revenue for the day.
+    """
+    logger.info(f"Querying daily BD performance for {target_date}...")
+    
+    valid_bds = ('House', 'Paige Chamberlain', 'Sean Swaim', 'Mike Meyer', 'Dave Tanner', 'Rob Grayson', 'Robert Galle')
+    
+    query = """
+        SELECT 
+            s.name AS bd_name,
+            COUNT(*) AS completed_count,
+            COALESCE(SUM(ib.subtotal), 0) AS completed_revenue
+        FROM invoicebase ib
+        JOIN invoice i ON ib.id = i.id
+        JOIN salesrep s ON ib.salesrep_id = s.id
+        WHERE DATE(ib.pickupdate) = %s
+          AND ib.onpendinglist = false
+          AND ib.isdeleted = false
+          AND i.isdeleted = false
+          AND COALESCE(ib.voided, false) = false
+          AND s.name IN %s
+        GROUP BY s.name
+        ORDER BY completed_revenue DESC
+    """
+    
+    bd_data = []
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (target_date, valid_bds))
+            rows = cur.fetchall()
+            
+            for row in rows:
+                bd = {
+                    'bd_name': row[0],
+                    'completed_count': row[1],
+                    'completed_revenue': float(row[2]) if row[2] else 0.0
+                }
+                bd_data.append(bd)
+            
+            logger.info(f"Found daily performance for {len(bd_data)} BDs")
+            return bd_data
+            
+    except Exception as e:
+        logger.error(f"Error querying daily BD performance: {e}")
+        raise
+
+
+def get_revenue_from_salesbase(conn, start_date, end_date):
+    """
+    Query salesbase for total sales revenue (excludes postage and shipping).
+    Uses salesbase.totalsales which represents actual sales only.
+    
+    Args:
+        conn: Database connection
+        start_date: Start date for the range (inclusive)
+        end_date: End date for the range (inclusive)
+    
+    Returns:
+        float: Total sales revenue for the date range
+    """
+    logger.info(f"Querying salesbase revenue from {start_date} to {end_date}...")
+    
+    query = """
+        SELECT COALESCE(SUM(sb.totalsales), 0) AS total_sales
+        FROM salesbase sb
+        INNER JOIN dailysales ds ON sb.id = ds.id
+        WHERE DATE(sb.closeoutdate) >= %s
+          AND DATE(sb.closeoutdate) <= %s
+          AND sb.isdeleted = false
+    """
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (start_date, end_date))
+            row = cur.fetchone()
+            revenue = float(row[0]) if row[0] else 0.0
+            logger.info(f"Salesbase revenue: ${revenue:,.2f}")
+            return revenue
+            
+    except Exception as e:
+        logger.error(f"Error querying salesbase revenue: {e}")
+        raise
+
+
 def get_mtd_metrics(conn):
     """
     Query month-to-date sales metrics for goal progress.
     Returns: revenue, sales_count, estimates_created, new_customers.
+    
+    Note: Revenue comes from salesbase.totalsales (excludes postage/shipping).
     """
     today = datetime.now().date()
     first_of_month = today.replace(day=1)
@@ -329,11 +490,13 @@ def get_mtd_metrics(conn):
     }
     
     try:
+        # Get revenue from salesbase (excludes postage/shipping)
+        result['revenue'] = get_revenue_from_salesbase(conn, first_of_month, today)
+        
         with conn.cursor() as cur:
-            revenue_query = """
-                SELECT 
-                    COUNT(*) AS sales_count,
-                    COALESCE(SUM(ib.subtotal), 0) AS revenue
+            # Get sales count from invoicebase (count of actual invoices)
+            sales_count_query = """
+                SELECT COUNT(*) AS sales_count
                 FROM invoicebase ib
                 JOIN invoice i ON ib.id = i.id
                 WHERE DATE(ib.pickupdate) >= %s
@@ -343,10 +506,9 @@ def get_mtd_metrics(conn):
                   AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
             """
-            cur.execute(revenue_query, (first_of_month, today))
+            cur.execute(sales_count_query, (first_of_month, today))
             row = cur.fetchone()
             result['sales_count'] = row[0] if row[0] else 0
-            result['revenue'] = float(row[1]) if row[1] else 0.0
             
             estimates_query = """
                 SELECT COUNT(*) AS estimates_created
@@ -401,6 +563,8 @@ def get_ytd_metrics(conn):
     """
     Query year-to-date sales metrics for annual goal progress.
     Returns: revenue, sales_count, estimates_created, new_customers.
+    
+    Note: Revenue comes from salesbase.totalsales (excludes postage/shipping).
     """
     today = datetime.now().date()
     first_of_year = today.replace(month=1, day=1)
@@ -414,11 +578,13 @@ def get_ytd_metrics(conn):
     }
     
     try:
+        # Get revenue from salesbase (excludes postage/shipping)
+        result['revenue'] = get_revenue_from_salesbase(conn, first_of_year, today)
+        
         with conn.cursor() as cur:
-            revenue_query = """
-                SELECT 
-                    COUNT(*) AS sales_count,
-                    COALESCE(SUM(ib.subtotal), 0) AS revenue
+            # Get sales count from invoicebase (count of actual invoices)
+            sales_count_query = """
+                SELECT COUNT(*) AS sales_count
                 FROM invoicebase ib
                 JOIN invoice i ON ib.id = i.id
                 WHERE DATE(ib.pickupdate) >= %s
@@ -428,10 +594,9 @@ def get_ytd_metrics(conn):
                   AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
             """
-            cur.execute(revenue_query, (first_of_year, today))
+            cur.execute(sales_count_query, (first_of_year, today))
             row = cur.fetchone()
             result['sales_count'] = row[0] if row[0] else 0
-            result['revenue'] = float(row[1]) if row[1] else 0.0
             
             estimates_query = """
                 SELECT COUNT(*) AS estimates_created
@@ -486,10 +651,14 @@ def get_ytd_metrics(conn):
 # AI INSIGHTS QUERIES
 # ============================================================================
 
-def get_anniversary_reorders(conn):
+def get_anniversary_reorders(conn, exclude_account_ids=None):
     """
     Find large orders from 10-11 months ago that may need reordering.
     These customers may need the same job again this year!
+    
+    Args:
+        conn: Database connection
+        exclude_account_ids: Optional set of account IDs to exclude (recently shown)
     """
     logger.info("Querying anniversary reorder opportunities...")
     
@@ -497,19 +666,27 @@ def get_anniversary_reorders(conn):
     eleven_months_ago = today - timedelta(days=335)  # ~11 months
     ten_months_ago = today - timedelta(days=305)     # ~10 months
     
+    # Combine program exclusions with recently shown exclusions
+    all_excluded = set(EXCLUDED_ACCOUNT_IDS)
+    if exclude_account_ids:
+        all_excluded.update(exclude_account_ids)
+    
     query = """
         SELECT 
             ib.invoicenumber,
             DATE(ib.pickupdate) AS pickup_date,
-            ib.name AS account_name,
+            a.title AS customer_name,
             ib.subtotal AS amount,
             ib.invoicetitle AS job_description,
-            COALESCE(s.name, '') AS bd
+            COALESCE(s.name, '') AS bd,
+            ib.account_id
         FROM invoicebase ib
         JOIN invoice i ON ib.id = i.id
+        LEFT JOIN account a ON ib.account_id = a.id
         LEFT JOIN salesrep s ON ib.salesrep_id = s.id
         WHERE DATE(ib.pickupdate) BETWEEN %s AND %s
           AND ib.subtotal >= 2000
+          AND ib.account_id NOT IN %s
           AND ib.onpendinglist = false
           AND ib.isdeleted = false
           AND i.isdeleted = false
@@ -521,14 +698,15 @@ def get_anniversary_reorders(conn):
     items = []
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (eleven_months_ago, ten_months_ago))
+            cur.execute(query, (eleven_months_ago, ten_months_ago, tuple(all_excluded) or (0,)))
             rows = cur.fetchall()
             
             for row in rows:
                 items.append({
                     'name': row[2] or 'Unknown',
                     'detail': row[4] or 'Previous order',
-                    'value': f"${float(row[3]):,.0f}" if row[3] else None
+                    'value': f"${float(row[3]):,.0f}" if row[3] else None,
+                    'account_id': row[6]
                 })
             
             logger.info(f"Found {len(items)} anniversary reorder opportunities")
@@ -546,49 +724,59 @@ def get_anniversary_reorders(conn):
     return None
 
 
-def get_lapsed_accounts(conn):
+def get_lapsed_accounts(conn, exclude_account_ids=None):
     """
     Find high-value accounts that haven't ordered in 6+ months.
     Time for a check-in call!
+    
+    Args:
+        conn: Database connection
+        exclude_account_ids: Optional set of account IDs to exclude (recently shown)
     """
     logger.info("Querying lapsed high-value accounts...")
     
     today = datetime.now().date()
     six_months_ago = today - timedelta(days=180)
     
+    # Combine program exclusions with recently shown exclusions
+    all_excluded = set(EXCLUDED_ACCOUNT_IDS)
+    if exclude_account_ids:
+        all_excluded.update(exclude_account_ids)
+    
     query = """
         WITH account_stats AS (
             SELECT 
                 ib.account_id,
-                ib.name AS account_name,
                 MAX(DATE(ib.pickupdate)) AS last_order_date,
                 SUM(ib.subtotal) AS lifetime_value,
                 COUNT(*) AS order_count
             FROM invoicebase ib
             JOIN invoice i ON ib.id = i.id
             WHERE ib.onpendinglist = false
+              AND ib.account_id NOT IN %s
               AND ib.isdeleted = false
               AND i.isdeleted = false
               AND COALESCE(ib.voided, false) = false
-            GROUP BY ib.account_id, ib.name
+            GROUP BY ib.account_id
         )
         SELECT 
-            account_id,
-            account_name,
-            last_order_date,
-            lifetime_value,
-            order_count
-        FROM account_stats
-        WHERE lifetime_value >= 5000
-          AND last_order_date < %s
-        ORDER BY lifetime_value DESC
+            ast.account_id,
+            a.title AS customer_name,
+            ast.last_order_date,
+            ast.lifetime_value,
+            ast.order_count
+        FROM account_stats ast
+        LEFT JOIN account a ON ast.account_id = a.id
+        WHERE ast.lifetime_value >= 5000
+          AND ast.last_order_date < %s
+        ORDER BY ast.last_order_date DESC, ast.lifetime_value DESC
         LIMIT 5
     """
     
     items = []
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (six_months_ago,))
+            cur.execute(query, (tuple(all_excluded) or (0,), six_months_ago))
             rows = cur.fetchall()
             
             for row in rows:
@@ -596,7 +784,8 @@ def get_lapsed_accounts(conn):
                 items.append({
                     'name': row[1] or 'Unknown',
                     'detail': f"Last order: {last_order}",
-                    'value': f"${float(row[3]):,.0f} lifetime" if row[3] else None
+                    'value': f"${float(row[3]):,.0f} lifetime" if row[3] else None,
+                    'account_id': row[0]
                 })
             
             logger.info(f"Found {len(items)} lapsed high-value accounts")
@@ -614,12 +803,21 @@ def get_lapsed_accounts(conn):
     return None
 
 
-def get_past_due_accounts(conn):
+def get_past_due_accounts(conn, exclude_account_ids=None):
     """
     Find accounts with AR aging issues (30/60/90 day buckets).
     Friendly payment reminder needed!
+    
+    Args:
+        conn: Database connection
+        exclude_account_ids: Optional set of account IDs to exclude (recently shown)
     """
     logger.info("Querying past due accounts...")
+    
+    # Combine program exclusions with recently shown exclusions
+    all_excluded = set(EXCLUDED_ACCOUNT_IDS)
+    if exclude_account_ids:
+        all_excluded.update(exclude_account_ids)
     
     # Note: This query uses PrintSmith's account balance fields
     query = """
@@ -630,6 +828,7 @@ def get_past_due_accounts(conn):
             a.balance AS total_balance
         FROM account a
         WHERE (COALESCE(a.balance30day, 0) + COALESCE(a.balance60day, 0) + COALESCE(a.balance90day, 0)) > 0
+          AND a.id NOT IN %s
           AND a.isdeleted = false
         ORDER BY past_due_total DESC
         LIMIT 5
@@ -638,14 +837,15 @@ def get_past_due_accounts(conn):
     items = []
     try:
         with conn.cursor() as cur:
-            cur.execute(query)
+            cur.execute(query, (tuple(all_excluded) or (0,),))
             rows = cur.fetchall()
             
             for row in rows:
                 items.append({
                     'name': row[1] or 'Unknown',
                     'detail': f"Total balance: ${float(row[3]):,.0f}" if row[3] else 'Balance unknown',
-                    'value': f"${float(row[2]):,.0f} past due" if row[2] else None
+                    'value': f"${float(row[2]):,.0f} past due" if row[2] else None,
+                    'account_id': row[0]
                 })
             
             logger.info(f"Found {len(items)} past due accounts")
@@ -663,10 +863,14 @@ def get_past_due_accounts(conn):
     return None
 
 
-def get_hot_streak_accounts(conn):
+def get_hot_streak_accounts(conn, exclude_account_ids=None):
     """
     Find accounts that are increasing their order frequency.
     Compare last 3 months vs prior 3 months.
+    
+    Args:
+        conn: Database connection
+        exclude_account_ids: Optional set of account IDs to exclude (recently shown)
     """
     logger.info("Querying hot streak accounts...")
     
@@ -674,21 +878,27 @@ def get_hot_streak_accounts(conn):
     three_months_ago = today - timedelta(days=90)
     six_months_ago = today - timedelta(days=180)
     
+    # Combine program exclusions with recently shown exclusions
+    all_excluded = set(EXCLUDED_ACCOUNT_IDS)
+    if exclude_account_ids:
+        all_excluded.update(exclude_account_ids)
+    all_excluded_tuple = tuple(all_excluded) or (0,)
+    
     query = """
         WITH recent_orders AS (
             SELECT 
                 ib.account_id,
-                ib.name AS account_name,
                 COUNT(*) AS recent_count,
                 SUM(ib.subtotal) AS recent_spend
             FROM invoicebase ib
             JOIN invoice i ON ib.id = i.id
             WHERE DATE(ib.pickupdate) >= %s
+              AND ib.account_id NOT IN %s
               AND ib.onpendinglist = false
               AND ib.isdeleted = false
               AND i.isdeleted = false
               AND COALESCE(ib.voided, false) = false
-            GROUP BY ib.account_id, ib.name
+            GROUP BY ib.account_id
         ),
         prior_orders AS (
             SELECT 
@@ -697,6 +907,7 @@ def get_hot_streak_accounts(conn):
             FROM invoicebase ib
             JOIN invoice i ON ib.id = i.id
             WHERE DATE(ib.pickupdate) >= %s AND DATE(ib.pickupdate) < %s
+              AND ib.account_id NOT IN %s
               AND ib.onpendinglist = false
               AND ib.isdeleted = false
               AND i.isdeleted = false
@@ -705,11 +916,12 @@ def get_hot_streak_accounts(conn):
         )
         SELECT 
             r.account_id,
-            r.account_name,
+            a.title AS customer_name,
             r.recent_count,
             COALESCE(p.prior_count, 0) AS prior_count,
             r.recent_spend
         FROM recent_orders r
+        LEFT JOIN account a ON r.account_id = a.id
         LEFT JOIN prior_orders p ON r.account_id = p.account_id
         WHERE r.recent_count > COALESCE(p.prior_count, 0)
           AND r.recent_spend >= 1000
@@ -720,7 +932,7 @@ def get_hot_streak_accounts(conn):
     items = []
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (three_months_ago, six_months_ago, three_months_ago))
+            cur.execute(query, (three_months_ago, all_excluded_tuple, six_months_ago, three_months_ago, all_excluded_tuple))
             rows = cur.fetchall()
             
             for row in rows:
@@ -729,7 +941,8 @@ def get_hot_streak_accounts(conn):
                 items.append({
                     'name': row[1] or 'Unknown',
                     'detail': f"{recent} orders (was {prior})",
-                    'value': f"${float(row[4]):,.0f} recent" if row[4] else None
+                    'value': f"${float(row[4]):,.0f} recent" if row[4] else None,
+                    'account_id': row[0]
                 })
             
             logger.info(f"Found {len(items)} hot streak accounts")
@@ -747,37 +960,49 @@ def get_hot_streak_accounts(conn):
     return None
 
 
-def get_high_value_pending_estimates(conn):
+def get_high_value_pending_estimates(conn, exclude_account_ids=None):
     """
     Find big quotes that need follow-up ($1000+).
     Follow up to close the deal!
+    
+    Args:
+        conn: Database connection
+        exclude_account_ids: Optional set of account IDs to exclude (recently shown)
     """
     logger.info("Querying high-value pending estimates...")
+    
+    # Combine program exclusions with recently shown exclusions
+    all_excluded = set(EXCLUDED_ACCOUNT_IDS)
+    if exclude_account_ids:
+        all_excluded.update(exclude_account_ids)
     
     query = """
         SELECT 
             ib.invoicenumber AS estimatenumber,
-            ib.name AS account_name,
+            a.title AS customer_name,
             ib.subtotal AS amount,
             DATE(ib.ordereddate) AS created_date,
             ib.invoicetitle AS job_description,
             ib.takenby AS pm,
-            COALESCE(s.name, '') AS bd
+            COALESCE(s.name, '') AS bd,
+            ib.account_id
         FROM estimate e
         JOIN invoicebase ib ON e.id = ib.id
+        LEFT JOIN account a ON ib.account_id = a.id
         LEFT JOIN salesrep s ON ib.salesrep_id = s.id
         WHERE ib.onpendinglist = true
           AND ib.subtotal >= 1000
+          AND ib.account_id NOT IN %s
           AND ib.isdeleted = false
           AND COALESCE(ib.voided, false) = false
-        ORDER BY ib.subtotal DESC
+        ORDER BY ib.ordereddate DESC, ib.subtotal DESC
         LIMIT 5
     """
     
     items = []
     try:
         with conn.cursor() as cur:
-            cur.execute(query)
+            cur.execute(query, (tuple(all_excluded) or (0,),))
             rows = cur.fetchall()
             
             for row in rows:
@@ -785,7 +1010,8 @@ def get_high_value_pending_estimates(conn):
                 items.append({
                     'name': row[1] or 'Unknown',
                     'detail': f"{row[4] or 'Estimate'} (created {created})",
-                    'value': f"${float(row[2]):,.0f}" if row[2] else None
+                    'value': f"${float(row[2]):,.0f}" if row[2] else None,
+                    'account_id': row[7]
                 })
             
             logger.info(f"Found {len(items)} high-value pending estimates")
@@ -803,27 +1029,56 @@ def get_high_value_pending_estimates(conn):
     return None
 
 
-def get_ai_insights(conn):
+def get_ai_insights(conn, exclude_account_ids=None, day_of_week=None):
     """
-    Gather all AI insights from various queries.
-    Returns list of insight objects.
+    Gather AI insights from various queries with freshness controls.
+    
+    Args:
+        conn: Database connection
+        exclude_account_ids: Set of account IDs to exclude (recently shown in past 14 days)
+        day_of_week: Optional day override (0=Monday, 6=Sunday). If None, uses current day.
+    
+    Returns:
+        List of insight objects, rotating types by day of week for variety.
     """
     logger.info("Gathering AI insights...")
     
+    # Day-of-week rotation schedule - 2-3 insight types per day
+    # This ensures variety across the week
+    INSIGHT_ROTATION = {
+        0: ['anniversary_reorders', 'hot_streak_accounts', 'high_value_estimates'],  # Monday
+        1: ['lapsed_accounts', 'past_due_accounts'],                                   # Tuesday
+        2: ['hot_streak_accounts', 'anniversary_reorders'],                            # Wednesday
+        3: ['high_value_estimates', 'lapsed_accounts'],                                # Thursday
+        4: ['past_due_accounts', 'hot_streak_accounts', 'anniversary_reorders'],      # Friday
+        5: ['lapsed_accounts', 'high_value_estimates'],                                # Saturday
+        6: ['anniversary_reorders', 'lapsed_accounts'],                                # Sunday
+    }
+    
+    # Map insight type names to functions
+    INSIGHT_FUNCTIONS = {
+        'anniversary_reorders': get_anniversary_reorders,
+        'lapsed_accounts': get_lapsed_accounts,
+        'past_due_accounts': get_past_due_accounts,
+        'hot_streak_accounts': get_hot_streak_accounts,
+        'high_value_estimates': get_high_value_pending_estimates,
+    }
+    
+    # Determine which insight types to run today
+    if day_of_week is None:
+        day_of_week = datetime.now().weekday()
+    
+    today_types = INSIGHT_ROTATION.get(day_of_week, list(INSIGHT_FUNCTIONS.keys()))
+    logger.info(f"Day {day_of_week} insight types: {today_types}")
+    
     insights = []
     
-    # Run each insight query and collect results
-    insight_functions = [
-        get_anniversary_reorders,
-        get_lapsed_accounts,
-        get_past_due_accounts,
-        get_hot_streak_accounts,
-        get_high_value_pending_estimates,
-    ]
-    
-    for func in insight_functions:
+    for insight_type in today_types:
+        func = INSIGHT_FUNCTIONS.get(insight_type)
+        if not func:
+            continue
         try:
-            result = func(conn)
+            result = func(conn, exclude_account_ids=exclude_account_ids)
             if result:
                 insights.append(result)
         except Exception as e:
@@ -836,6 +1091,60 @@ def get_ai_insights(conn):
 # ============================================================================
 # EXPORT FUNCTIONS
 # ============================================================================
+
+def get_recently_shown_accounts(days: int = 14) -> set:
+    """
+    Fetch account IDs that were shown in recent digests.
+    Used to exclude them from today's insights for freshness.
+    
+    Args:
+        days: Number of days to look back (default 14)
+    
+    Returns:
+        Set of account IDs to exclude, or empty set if API unavailable
+    """
+    api_url = os.environ.get('RENDER_API_URL')
+    api_secret = os.environ.get('EXPORT_API_SECRET')
+    
+    if not api_url or not api_secret:
+        logger.warning("Cannot fetch recent accounts: API URL or secret not set")
+        return set()
+    
+    # Build the recent endpoint URL (replace /export with /export/recent)
+    recent_url = api_url.replace('/api/export', '/api/export/recent')
+    if recent_url == api_url:
+        # Fallback: just append /recent
+        recent_url = api_url.rstrip('/') + '/recent'
+    
+    recent_url = f"{recent_url}?days={days}"
+    
+    logger.info(f"Fetching recently shown accounts from: {recent_url}")
+    
+    headers = {
+        'X-Export-Secret': api_secret
+    }
+    
+    try:
+        response = requests.get(recent_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        account_ids = set(data.get('accountIds', []))
+        account_names = data.get('accountNames', [])
+        
+        logger.info(f"Found {len(account_ids)} recently shown account IDs to exclude")
+        if account_names:
+            logger.info(f"Recent accounts include: {', '.join(account_names[:5])}{'...' if len(account_names) > 5 else ''}")
+        
+        return account_ids
+        
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Could not fetch recent accounts (continuing without exclusions): {e}")
+        return set()
+    except Exception as e:
+        logger.warning(f"Error parsing recent accounts response: {e}")
+        return set()
+
 
 def post_to_api(data: dict) -> dict:
     """POST assembled data to Render API."""
@@ -868,8 +1177,81 @@ def post_to_api(data: dict) -> dict:
         raise
 
 
-def assemble_export_data(target_date, invoice_data, estimate_data, pm_data, bd_data, mtd_data, ytd_data, ai_insights) -> dict:
+def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data, bd_open_data, 
+                         pm_daily_data, bd_daily_data, mtd_data, ytd_data, ai_insights) -> dict:
     """Assemble all exported data into the API payload format."""
+    
+    # Extract biggest order from invoices
+    invoices = invoice_data.get('invoices', [])
+    biggest_order = None
+    if invoices:
+        top_invoice = invoices[0]  # Already sorted by subtotal DESC
+        biggest_order = {
+            'accountName': top_invoice.get('account_name', 'Unknown'),
+            'amount': top_invoice.get('subtotal', 0),
+            'description': top_invoice.get('job_description'),
+            'salesRep': top_invoice.get('salesrep'),
+        }
+    
+    # Extract top performers from daily data
+    top_pm = None
+    if pm_daily_data:
+        top = pm_daily_data[0]  # Already sorted by revenue DESC
+        top_pm = {
+            'name': top['pm_name'],
+            'ordersCompleted': top['completed_count'],
+            'revenue': top['completed_revenue'],
+        }
+    
+    top_bd = None
+    if bd_daily_data:
+        top = bd_daily_data[0]  # Already sorted by revenue DESC
+        top_bd = {
+            'name': top['bd_name'],
+            'ordersCompleted': top['completed_count'],
+            'revenue': top['completed_revenue'],
+        }
+    
+    # Generate highlights
+    highlights = _generate_highlights(invoice_data, estimate_data)
+    
+    # Track shown items for freshness (to exclude in future digests)
+    shown_account_ids = set()
+    shown_account_names = []
+    shown_insight_types = []
+    
+    # Collect account IDs from highlights (top invoices and estimates)
+    filtered_invoices = [
+        inv for inv in invoice_data.get('invoices', [])
+        if inv.get('account_id') not in EXCLUDED_ACCOUNT_IDS
+    ]
+    for inv in filtered_invoices[:3]:
+        if inv.get('account_id'):
+            shown_account_ids.add(inv['account_id'])
+            shown_account_names.append(inv.get('customer_name', 'Unknown'))
+    
+    filtered_estimates = [
+        est for est in estimate_data.get('top_estimates', [])
+        if est.get('account_id') not in EXCLUDED_ACCOUNT_IDS
+    ]
+    for est in filtered_estimates[:2]:
+        if est.get('account_id'):
+            shown_account_ids.add(est['account_id'])
+            shown_account_names.append(est.get('customer_name', 'Unknown'))
+    
+    # Collect account IDs and types from AI insights
+    for insight in ai_insights:
+        insight_type = insight.get('type')
+        if insight_type:
+            shown_insight_types.append(insight_type)
+        # Extract account IDs from insight items if available
+        for item in insight.get('items', []):
+            if item.get('account_id'):
+                shown_account_ids.add(item['account_id'])
+            # Also track account names for AI context
+            if item.get('name'):
+                shown_account_names.append(item['name'])
+    
     return {
         'export_date': target_date.isoformat(),
         'date': target_date.isoformat(),
@@ -889,43 +1271,87 @@ def assemble_export_data(target_date, invoice_data, estimate_data, pm_data, bd_d
         },
         'yesterday_invoices': invoice_data,
         'yesterday_estimates': estimate_data,
-        'pm_table': pm_data,
-        'bd_table': bd_data,
+        'pm_table': pm_open_data,
+        'bd_table': bd_open_data,
         'mtd_metrics': mtd_data,
         'ytd_metrics': ytd_data,
-        'highlights': _generate_highlights(invoice_data, estimate_data),
+        'highlights': highlights,
+        # Daily completed performance (for top performer display)
         'bdPerformance': [
-            {'name': bd['bd_name'], 'ordersCompleted': bd['open_count'], 'revenue': bd['open_total_dollars']}
-            for bd in bd_data
+            {'name': bd['bd_name'], 'ordersCompleted': bd['completed_count'], 'revenue': bd['completed_revenue']}
+            for bd in bd_daily_data
         ],
         'pmPerformance': [
-            {'name': pm['pm_name'], 'ordersCompleted': pm['open_count'], 'revenue': pm['open_total_dollars']}
-            for pm in pm_data
+            {'name': pm['pm_name'], 'ordersCompleted': pm['completed_count'], 'revenue': pm['completed_revenue']}
+            for pm in pm_daily_data
         ],
+        # Explicit top performers for AI context
+        'biggestOrder': biggest_order,
+        'topPM': top_pm,
+        'topBD': top_bd,
         'aiInsights': ai_insights,
+        # Track what was shown for freshness/deduplication
+        'shownInsights': {
+            'date': target_date.isoformat(),
+            'accountIds': list(shown_account_ids),
+            'accountNames': list(set(shown_account_names)),  # Dedupe names
+            'insightTypes': list(set(shown_insight_types)),
+        },
     }
 
 
 def _generate_highlights(invoice_data, estimate_data) -> list:
-    """Generate highlight items from invoice and estimate data."""
+    """Generate highlight items from invoice and estimate data.
+    
+    Excludes program work accounts (defined in EXCLUDED_ACCOUNT_IDS) to focus
+    on non-program business development opportunities.
+    
+    Format: "Completed order for **Customer Name** - Job Description - $Amount"
+    """
     highlights = []
     
-    # Add top invoices as highlights
-    for invoice in invoice_data.get('invoices', [])[:3]:
+    # Filter out excluded program accounts from invoices
+    filtered_invoices = [
+        inv for inv in invoice_data.get('invoices', [])
+        if inv.get('account_id') not in EXCLUDED_ACCOUNT_IDS
+    ]
+    
+    # Add top invoices as highlights (excluding program work)
+    for invoice in filtered_invoices[:3]:
         amount = invoice.get('subtotal', 0)
-        account = invoice.get('account_name', 'Unknown')
+        customer_name = invoice.get('customer_name', 'Unknown')
+        job_desc = invoice.get('job_description') or invoice.get('account_name') or ''
+        
+        if job_desc:
+            description = f"Completed order for <strong>{customer_name}</strong> - {job_desc} - ${amount:,.2f}"
+        else:
+            description = f"Completed order for <strong>{customer_name}</strong> - ${amount:,.2f}"
+        
         highlights.append({
             'type': 'invoice',
-            'description': f"Completed order for {account} - ${amount:,.2f}"
+            'description': description
         })
     
-    # Add top estimates as highlights
-    for estimate in estimate_data.get('top_estimates', [])[:2]:
+    # Filter out excluded program accounts from estimates
+    filtered_estimates = [
+        est for est in estimate_data.get('top_estimates', [])
+        if est.get('account_id') not in EXCLUDED_ACCOUNT_IDS
+    ]
+    
+    # Add top estimates as highlights (excluding program work)
+    for estimate in filtered_estimates[:2]:
         amount = estimate.get('subtotal', 0)
-        account = estimate.get('account_name', 'Unknown')
+        customer_name = estimate.get('customer_name', 'Unknown')
+        job_desc = estimate.get('job_description') or estimate.get('account_name') or ''
+        
+        if job_desc:
+            description = f"New estimate for <strong>{customer_name}</strong> - {job_desc} - ${amount:,.2f}"
+        else:
+            description = f"New estimate for <strong>{customer_name}</strong> - ${amount:,.2f}"
+        
         highlights.append({
             'type': 'estimate',
-            'description': f"New estimate for {account} - ${amount:,.2f}"
+            'description': description
         })
     
     return highlights
@@ -956,21 +1382,33 @@ def main():
         bd_open_data = get_bd_open_invoices(conn)
         logger.info(f"BD open invoices: {len(bd_open_data)} BDs with open invoices")
         
+        # Get daily performance (completed orders for the day)
+        pm_daily_data = get_daily_pm_performance(conn, target_date)
+        logger.info(f"PM daily performance: {len(pm_daily_data)} PMs with completed orders")
+        
+        bd_daily_data = get_daily_bd_performance(conn, target_date)
+        logger.info(f"BD daily performance: {len(bd_daily_data)} BDs with completed orders")
+        
         mtd_data = get_mtd_metrics(conn)
         logger.info(f"MTD metrics: ${mtd_data['revenue']:,.2f} revenue, {mtd_data['sales_count']} sales")
         
         ytd_data = get_ytd_metrics(conn)
         logger.info(f"YTD metrics: ${ytd_data['revenue']:,.2f} revenue, {ytd_data['sales_count']} sales")
         
-        # Get AI Insights
-        ai_insights = get_ai_insights(conn)
+        # Fetch recently shown accounts for freshness (skip in dry-run mode to avoid API calls)
+        recently_shown = set()
+        if not args.dry_run:
+            recently_shown = get_recently_shown_accounts(days=14)
+        
+        # Get AI Insights with freshness controls (exclude recently shown, rotate by day)
+        ai_insights = get_ai_insights(conn, exclude_account_ids=recently_shown)
         logger.info(f"AI Insights: {len(ai_insights)} insights gathered")
         
         # Assemble all data
         export_data = assemble_export_data(
             target_date, invoice_data, estimate_data, 
-            pm_open_data, bd_open_data, mtd_data, ytd_data,
-            ai_insights
+            pm_open_data, bd_open_data, pm_daily_data, bd_daily_data,
+            mtd_data, ytd_data, ai_insights
         )
         
         if args.dry_run:
