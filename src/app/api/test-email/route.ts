@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateDailyDigestWithMockFallback } from '@/lib/daily-digest';
+import { generateWeeklyDigestWithMockFallback } from '@/lib/weekly-digest';
 import { sendEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email } = body;
+    const { email, type = 'daily' } = body;
 
     if (!email || typeof email !== 'string') {
       return NextResponse.json(
@@ -22,15 +23,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { html } = await generateDailyDigestWithMockFallback('Test User');
-
     const today = new Date();
-    const dateStr = today.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-    const subject = `🐕 Retriever Daily Digest - ${dateStr} (TEST)`;
+    let html: string;
+    let subject: string;
+
+    if (type === 'weekly') {
+      const result = await generateWeeklyDigestWithMockFallback('Test User');
+      html = result.html;
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      const weekStartStr = weekStart.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+      subject = `🐕 Retriever Weekly Digest - Week of ${weekStartStr} (TEST)`;
+    } else {
+      const result = await generateDailyDigestWithMockFallback('Test User');
+      html = result.html;
+      const dateStr = today.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+      subject = `🐕 Retriever Daily Digest - ${dateStr} (TEST)`;
+    }
 
     const result = await sendEmail({
       to: email,

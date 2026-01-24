@@ -81,7 +81,7 @@ export default function TestingPage() {
       const response = await fetch('/api/test-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: testEmail }),
+        body: JSON.stringify({ email: testEmail, type: activePreview || 'daily' }),
       });
 
       const data = await response.json();
@@ -159,7 +159,7 @@ export default function TestingPage() {
             onClick={handleSendTest}
             disabled={isSending}
           >
-            {isSending ? 'Sending...' : 'Send Test'}
+            {isSending ? 'Sending...' : `Send ${activePreview === 'weekly' ? 'Weekly' : 'Daily'} Test`}
           </button>
         </div>
         {sendResult && (
