@@ -58,7 +58,7 @@ export default function GoalForm({ title, type, initialData }: GoalFormProps) {
 
         <div className="goal-field">
           <label htmlFor={`${type}-salesCount`} className="goal-label">
-            Sales Count
+            New Jobs
           </label>
           <input
             type="number"

@@ -12,8 +12,8 @@ const BRAND_RED_DARK = '#991B1B';
 const BRAND_RED_LIGHT = '#FEE2E2';
 const BRAND_GRAY = '#5f6360';
 
-// Retriever Logo URL
-const LOGO_URL = 'https://www.booneproofs.net/email/Retriever_Logo.svg';
+// Retriever Logo URL (PNG for email client compatibility)
+const LOGO_URL = 'https://www.booneproofs.net/email/Retriever_Logo_White_smaller.png';
 
 export type { PerformanceData };
 
@@ -331,7 +331,7 @@ function generateWeeklyDigestHTML(
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
     <!-- Header -->
     <div style="background-color: ${BRAND_RED}; padding: 20px; text-align: center;">
-      <img src="${LOGO_URL}" alt="Retriever" style="width: 160px; height: 160px; margin-bottom: 8px; filter: brightness(0) invert(1);" />
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 160px; height: 160px; margin-bottom: 8px;" />
       <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">Weekly Digest</h1>
       <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 12px;">Week of ${weekRangeStr}</p>
     </div>
@@ -350,7 +350,7 @@ function generateWeeklyDigestHTML(
           </td>
           <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatNumber(data.thisWeek.salesCount)}</p>
-            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Orders Completed</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">New Jobs</p>
           </td>
         </tr>
         <tr>
@@ -394,7 +394,7 @@ function generateWeeklyDigestHTML(
             <td style="padding: 6px; text-align: right; font-size: 13px;">${renderChangeIndicator(data.weekOverWeekChange.revenueChange)}</td>
           </tr>
           <tr style="border-bottom: 1px solid #e5e7eb;">
-            <td style="padding: 6px; font-size: 13px; color: #374151;">Orders</td>
+            <td style="padding: 6px; font-size: 13px; color: #374151;">New Jobs</td>
             <td style="padding: 6px; text-align: right; font-size: 13px; color: #6b7280;">${formatNumber(data.lastWeek.salesCount)}</td>
             <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151; font-weight: 600;">${formatNumber(data.thisWeek.salesCount)}</td>
             <td style="padding: 6px; text-align: right; font-size: 13px;">${renderChangeIndicator(data.weekOverWeekChange.salesCountChange)}</td>
@@ -469,7 +469,7 @@ function generateWeeklyDigestHTML(
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Monthly Progress</h2>
       ${renderProgressBar(data.monthToDate.revenue, monthlyGoal.salesRevenue, 'Revenue')}
-      ${renderProgressBar(data.monthToDate.salesCount, monthlyGoal.salesCount, 'Sales Count')}
+      ${renderProgressBar(data.monthToDate.salesCount, monthlyGoal.salesCount, 'New Jobs')}
       ${renderProgressBar(data.monthToDate.estimatesCreated, monthlyGoal.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(data.monthToDate.newCustomers, monthlyGoal.newCustomers, 'New Customers')}
     </div>
@@ -478,7 +478,7 @@ function generateWeeklyDigestHTML(
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Annual Progress</h2>
       ${renderProgressBar(data.yearToDate.revenue, annualGoal.salesRevenue, 'Revenue')}
-      ${renderProgressBar(data.yearToDate.salesCount, annualGoal.salesCount, 'Sales Count')}
+      ${renderProgressBar(data.yearToDate.salesCount, annualGoal.salesCount, 'New Jobs')}
       ${renderProgressBar(data.yearToDate.estimatesCreated, annualGoal.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(data.yearToDate.newCustomers, annualGoal.newCustomers, 'New Customers')}
     </div>
@@ -491,7 +491,7 @@ function generateWeeklyDigestHTML(
 
     <!-- Footer -->
     <div style="background-color: ${BRAND_RED_DARK}; padding: 16px; text-align: center;">
-      <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; filter: brightness(0) invert(1); opacity: 0.9;" />
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; opacity: 0.9;" />
       <p style="margin: 0; color: rgba(255,255,255,0.9); font-size: 12px;">Retriever Weekly Digest</p>
       <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.7); font-size: 11px;">BooneGraphics Internal Sales Tool</p>
     </div>

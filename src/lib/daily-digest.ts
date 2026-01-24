@@ -25,8 +25,8 @@ const BRAND_RED_DARK = '#991B1B';
 const BRAND_RED_LIGHT = '#FEE2E2';
 const BRAND_GRAY = '#5f6360';
 
-// Retriever Logo URL
-const LOGO_URL = 'https://www.booneproofs.net/email/Retriever_Logo.svg';
+// Retriever Logo URL (PNG for email client compatibility)
+const LOGO_URL = 'https://www.booneproofs.net/email/Retriever_Logo_White_smaller.png';
 
 export interface SendDigestResult {
   sent: number;
@@ -533,7 +533,7 @@ export async function generateDailyDigest(recipientName: string): Promise<string
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
     <!-- Header -->
     <div style="background-color: ${BRAND_RED}; padding: 20px; text-align: center;">
-      <img src="${LOGO_URL}" alt="Retriever" style="width: 160px; height: 160px; margin-bottom: 8px; filter: brightness(0) invert(1);" />
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 160px; height: 160px; margin-bottom: 8px;" />
       <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">Daily Digest</h1>
       <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 12px;">${formatDate(dateStr)}</p>
     </div>
@@ -552,7 +552,7 @@ export async function generateDailyDigest(recipientName: string): Promise<string
           </td>
           <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatNumber(metrics.dailySalesCount)}</p>
-            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Orders Completed</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">New Jobs</p>
           </td>
         </tr>
         <tr>
@@ -640,7 +640,7 @@ export async function generateDailyDigest(recipientName: string): Promise<string
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Monthly Progress</h2>
       ${renderProgressBar(metrics.monthToDateRevenue, Number(monthly.salesRevenue), 'Revenue')}
-      ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'Sales Count')}
+      ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'New Jobs')}
       ${renderProgressBar(metrics.monthToDateEstimatesCreated, monthly.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.monthToDateNewCustomers, monthly.newCustomers, 'New Customers')}
     </div>
@@ -649,7 +649,7 @@ export async function generateDailyDigest(recipientName: string): Promise<string
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Annual Progress</h2>
       ${renderProgressBar(metrics.yearToDateRevenue, Number(annual.salesRevenue), 'Revenue')}
-      ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'Sales Count')}
+      ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'New Jobs')}
       ${renderProgressBar(metrics.yearToDateEstimatesCreated, annual.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.yearToDateNewCustomers, annual.newCustomers, 'New Customers')}
     </div>
@@ -662,7 +662,7 @@ export async function generateDailyDigest(recipientName: string): Promise<string
 
     <!-- Footer -->
     <div style="background-color: ${BRAND_RED_DARK}; padding: 16px; text-align: center;">
-      <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; filter: brightness(0) invert(1); opacity: 0.9;" />
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; opacity: 0.9;" />
       <p style="margin: 0; color: rgba(255,255,255,0.9); font-size: 12px;">Retriever Daily Digest</p>
       <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.7); font-size: 11px;">BooneGraphics Internal Sales Tool</p>
     </div>
@@ -782,7 +782,7 @@ export async function generateDailyDigestWithMockFallback(
   <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
     <!-- Header -->
     <div style="background-color: ${BRAND_RED}; padding: 20px; text-align: center;">
-      <img src="${LOGO_URL}" alt="Retriever" style="width: 160px; height: 160px; margin-bottom: 8px; filter: brightness(0) invert(1);" />
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 160px; height: 160px; margin-bottom: 8px;" />
       <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">Daily Digest</h1>
       <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 12px;">${formatDate(dateStr)}</p>
     </div>
@@ -801,7 +801,7 @@ export async function generateDailyDigestWithMockFallback(
           </td>
           <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatNumber(metrics.dailySalesCount)}</p>
-            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Orders Completed</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">New Jobs</p>
           </td>
         </tr>
         <tr>
@@ -889,7 +889,7 @@ export async function generateDailyDigestWithMockFallback(
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Monthly Progress</h2>
       ${renderProgressBar(metrics.monthToDateRevenue, Number(monthly.salesRevenue), 'Revenue')}
-      ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'Sales Count')}
+      ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'New Jobs')}
       ${renderProgressBar(metrics.monthToDateEstimatesCreated, monthly.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.monthToDateNewCustomers, monthly.newCustomers, 'New Customers')}
     </div>
@@ -898,7 +898,7 @@ export async function generateDailyDigestWithMockFallback(
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Annual Progress</h2>
       ${renderProgressBar(metrics.yearToDateRevenue, Number(annual.salesRevenue), 'Revenue')}
-      ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'Sales Count')}
+      ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'New Jobs')}
       ${renderProgressBar(metrics.yearToDateEstimatesCreated, annual.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.yearToDateNewCustomers, annual.newCustomers, 'New Customers')}
     </div>
@@ -911,7 +911,7 @@ export async function generateDailyDigestWithMockFallback(
 
     <!-- Footer -->
     <div style="background-color: ${BRAND_RED_DARK}; padding: 16px; text-align: center;">
-      <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; filter: brightness(0) invert(1); opacity: 0.9;" />
+      <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; opacity: 0.9;" />
       <p style="margin: 0; color: rgba(255,255,255,0.9); font-size: 12px;">Retriever Daily Digest</p>
       <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.7); font-size: 11px;">BooneGraphics Internal Sales Tool</p>
     </div>

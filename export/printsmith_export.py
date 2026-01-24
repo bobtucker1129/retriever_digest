@@ -109,6 +109,35 @@ def connect_to_printsmith():
         raise
 
 
+def get_new_jobs_created(conn, target_date):
+    """
+    Query count of new jobs (invoices) created on a given date.
+    Uses ordereddate which is when the job was entered into the system.
+    """
+    logger.info(f"Querying new jobs created on {target_date}...")
+    
+    query = """
+        SELECT COUNT(*) AS jobs_created
+        FROM invoicebase ib
+        JOIN invoice i ON ib.id = i.id
+        WHERE DATE(ib.ordereddate) = %s
+          AND ib.isdeleted = false
+          AND i.isdeleted = false
+          AND COALESCE(ib.voided, false) = false
+    """
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (target_date,))
+            row = cur.fetchone()
+            count = row[0] if row[0] else 0
+            logger.info(f"Found {count} new jobs created")
+            return count
+    except Exception as e:
+        logger.error(f"Error querying new jobs created: {e}")
+        raise
+
+
 def get_completed_invoices(conn, target_date):
     """
     Query yesterday's completed (posted) invoices.
@@ -337,28 +366,30 @@ def get_bd_open_invoices(conn):
 
 def get_daily_pm_performance(conn, target_date):
     """
-    Query completed invoices for the target date grouped by PM.
-    Returns list of PMs with their completed orders and revenue for the day.
+    Query new orders (invoices) created on the target date grouped by PM.
+    Returns list of PMs with their new orders and estimated revenue for the day.
+    
+    Note: Uses ordereddate (when job was created) instead of pickupdate (when completed)
+    to show daily activity even on days without closeouts.
     """
-    logger.info(f"Querying daily PM performance for {target_date}...")
+    logger.info(f"Querying daily PM performance (new orders) for {target_date}...")
     
     valid_pms = ('Jim', 'Steve', 'Shelley', 'Ellie', 'Ellie Lemire')
     
     query = """
         SELECT 
             ib.takenby AS pm_name,
-            COUNT(*) AS completed_count,
-            COALESCE(SUM(ib.subtotal), 0) AS completed_revenue
+            COUNT(*) AS orders_count,
+            COALESCE(SUM(ib.subtotal), 0) AS orders_revenue
         FROM invoicebase ib
         JOIN invoice i ON ib.id = i.id
-        WHERE DATE(ib.pickupdate) = %s
-          AND ib.onpendinglist = false
+        WHERE DATE(ib.ordereddate) = %s
           AND ib.isdeleted = false
           AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
           AND ib.takenby IN %s
         GROUP BY ib.takenby
-        ORDER BY completed_revenue DESC
+        ORDER BY orders_revenue DESC
     """
     
     pm_data = []
@@ -376,7 +407,7 @@ def get_daily_pm_performance(conn, target_date):
                 }
                 pm_data.append(pm)
             
-            logger.info(f"Found daily performance for {len(pm_data)} PMs")
+            logger.info(f"Found daily performance (new orders) for {len(pm_data)} PMs")
             return pm_data
             
     except Exception as e:
@@ -386,29 +417,31 @@ def get_daily_pm_performance(conn, target_date):
 
 def get_daily_bd_performance(conn, target_date):
     """
-    Query completed invoices for the target date grouped by BD.
-    Returns list of BDs with their completed orders and revenue for the day.
+    Query new orders (invoices) created on the target date grouped by BD.
+    Returns list of BDs with their new orders and estimated revenue for the day.
+    
+    Note: Uses ordereddate (when job was created) instead of pickupdate (when completed)
+    to show daily activity even on days without closeouts.
     """
-    logger.info(f"Querying daily BD performance for {target_date}...")
+    logger.info(f"Querying daily BD performance (new orders) for {target_date}...")
     
     valid_bds = ('House', 'Paige Chamberlain', 'Sean Swaim', 'Mike Meyer', 'Dave Tanner', 'Rob Grayson', 'Robert Galle')
     
     query = """
         SELECT 
             s.name AS bd_name,
-            COUNT(*) AS completed_count,
-            COALESCE(SUM(ib.subtotal), 0) AS completed_revenue
+            COUNT(*) AS orders_count,
+            COALESCE(SUM(ib.subtotal), 0) AS orders_revenue
         FROM invoicebase ib
         JOIN invoice i ON ib.id = i.id
         JOIN salesrep s ON ib.salesrep_id = s.id
-        WHERE DATE(ib.pickupdate) = %s
-          AND ib.onpendinglist = false
+        WHERE DATE(ib.ordereddate) = %s
           AND ib.isdeleted = false
           AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
           AND s.name IN %s
         GROUP BY s.name
-        ORDER BY completed_revenue DESC
+        ORDER BY orders_revenue DESC
     """
     
     bd_data = []
@@ -426,7 +459,7 @@ def get_daily_bd_performance(conn, target_date):
                 }
                 bd_data.append(bd)
             
-            logger.info(f"Found daily performance for {len(bd_data)} BDs")
+            logger.info(f"Found daily performance (new orders) for {len(bd_data)} BDs")
             return bd_data
             
     except Exception as e:
@@ -474,9 +507,10 @@ def get_revenue_from_salesbase(conn, start_date, end_date):
 def get_mtd_metrics(conn):
     """
     Query month-to-date sales metrics for goal progress.
-    Returns: revenue, sales_count, estimates_created, new_customers.
+    Returns: revenue, sales_count (new jobs created), estimates_created, new_customers.
     
     Note: Revenue comes from salesbase.totalsales (excludes postage/shipping).
+    Note: sales_count is now "new jobs created" - counted by ordereddate, not pickup.
     """
     today = datetime.now().date()
     first_of_month = today.replace(day=1)
@@ -484,7 +518,7 @@ def get_mtd_metrics(conn):
     
     result = {
         'revenue': 0.0,
-        'sales_count': 0,
+        'sales_count': 0,  # Now represents "new jobs created"
         'estimates_created': 0,
         'new_customers': 0
     }
@@ -494,19 +528,18 @@ def get_mtd_metrics(conn):
         result['revenue'] = get_revenue_from_salesbase(conn, first_of_month, today)
         
         with conn.cursor() as cur:
-            # Get sales count from invoicebase (count of actual invoices)
-            sales_count_query = """
-                SELECT COUNT(*) AS sales_count
+            # Get new jobs created (by ordereddate, regardless of pending status)
+            jobs_created_query = """
+                SELECT COUNT(*) AS jobs_created
                 FROM invoicebase ib
                 JOIN invoice i ON ib.id = i.id
-                WHERE DATE(ib.pickupdate) >= %s
-                  AND DATE(ib.pickupdate) <= %s
-                  AND ib.onpendinglist = false
+                WHERE DATE(ib.ordereddate) >= %s
+                  AND DATE(ib.ordereddate) <= %s
                   AND ib.isdeleted = false
                   AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
             """
-            cur.execute(sales_count_query, (first_of_month, today))
+            cur.execute(jobs_created_query, (first_of_month, today))
             row = cur.fetchone()
             result['sales_count'] = row[0] if row[0] else 0
             
@@ -549,7 +582,7 @@ def get_mtd_metrics(conn):
             row = cur.fetchone()
             result['new_customers'] = row[0] if row[0] else 0
             
-            logger.info(f"MTD metrics: ${result['revenue']:,.2f} revenue, {result['sales_count']} sales, "
+            logger.info(f"MTD metrics: ${result['revenue']:,.2f} revenue, {result['sales_count']} new jobs, "
                        f"{result['estimates_created']} estimates, {result['new_customers']} new customers")
             
             return result
@@ -562,9 +595,10 @@ def get_mtd_metrics(conn):
 def get_ytd_metrics(conn):
     """
     Query year-to-date sales metrics for annual goal progress.
-    Returns: revenue, sales_count, estimates_created, new_customers.
+    Returns: revenue, sales_count (new jobs created), estimates_created, new_customers.
     
     Note: Revenue comes from salesbase.totalsales (excludes postage/shipping).
+    Note: sales_count is now "new jobs created" - counted by ordereddate, not pickup.
     """
     today = datetime.now().date()
     first_of_year = today.replace(month=1, day=1)
@@ -572,7 +606,7 @@ def get_ytd_metrics(conn):
     
     result = {
         'revenue': 0.0,
-        'sales_count': 0,
+        'sales_count': 0,  # Now represents "new jobs created"
         'estimates_created': 0,
         'new_customers': 0
     }
@@ -582,19 +616,18 @@ def get_ytd_metrics(conn):
         result['revenue'] = get_revenue_from_salesbase(conn, first_of_year, today)
         
         with conn.cursor() as cur:
-            # Get sales count from invoicebase (count of actual invoices)
-            sales_count_query = """
-                SELECT COUNT(*) AS sales_count
+            # Get new jobs created (by ordereddate, regardless of pending status)
+            jobs_created_query = """
+                SELECT COUNT(*) AS jobs_created
                 FROM invoicebase ib
                 JOIN invoice i ON ib.id = i.id
-                WHERE DATE(ib.pickupdate) >= %s
-                  AND DATE(ib.pickupdate) <= %s
-                  AND ib.onpendinglist = false
+                WHERE DATE(ib.ordereddate) >= %s
+                  AND DATE(ib.ordereddate) <= %s
                   AND ib.isdeleted = false
                   AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
             """
-            cur.execute(sales_count_query, (first_of_year, today))
+            cur.execute(jobs_created_query, (first_of_year, today))
             row = cur.fetchone()
             result['sales_count'] = row[0] if row[0] else 0
             
@@ -637,7 +670,7 @@ def get_ytd_metrics(conn):
             row = cur.fetchone()
             result['new_customers'] = row[0] if row[0] else 0
             
-            logger.info(f"YTD metrics: ${result['revenue']:,.2f} revenue, {result['sales_count']} sales, "
+            logger.info(f"YTD metrics: ${result['revenue']:,.2f} revenue, {result['sales_count']} new jobs, "
                        f"{result['estimates_created']} estimates, {result['new_customers']} new customers")
             
             return result
@@ -1178,7 +1211,8 @@ def post_to_api(data: dict) -> dict:
 
 
 def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data, bd_open_data, 
-                         pm_daily_data, bd_daily_data, mtd_data, ytd_data, ai_insights) -> dict:
+                         pm_daily_data, bd_daily_data, mtd_data, ytd_data, ai_insights,
+                         daily_new_jobs: int = 0) -> dict:
     """Assemble all exported data into the API payload format."""
     
     # Extract biggest order from invoices
@@ -1257,7 +1291,7 @@ def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data,
         'date': target_date.isoformat(),
         'metrics': {
             'dailyRevenue': invoice_data['total_revenue'],
-            'dailySalesCount': invoice_data['invoice_count'],
+            'dailySalesCount': daily_new_jobs,  # Now "new jobs created" instead of "orders completed"
             'dailyEstimatesCreated': estimate_data['estimate_count'],
             'dailyNewCustomers': 0,  # Calculated separately if needed
             'monthToDateRevenue': mtd_data['revenue'],
@@ -1373,6 +1407,10 @@ def main():
         invoice_data = get_completed_invoices(conn, target_date)
         logger.info(f"Invoice export: {invoice_data['invoice_count']} invoices, ${invoice_data['total_revenue']:,.2f} revenue")
         
+        # Get new jobs created for the day (different from completed invoices)
+        daily_new_jobs = get_new_jobs_created(conn, target_date)
+        logger.info(f"New jobs created: {daily_new_jobs}")
+        
         estimate_data = get_estimates_created(conn, target_date)
         logger.info(f"Estimate export: {estimate_data['estimate_count']} estimates created")
         
@@ -1382,18 +1420,18 @@ def main():
         bd_open_data = get_bd_open_invoices(conn)
         logger.info(f"BD open invoices: {len(bd_open_data)} BDs with open invoices")
         
-        # Get daily performance (completed orders for the day)
+        # Get daily performance (new orders created for the day)
         pm_daily_data = get_daily_pm_performance(conn, target_date)
-        logger.info(f"PM daily performance: {len(pm_daily_data)} PMs with completed orders")
+        logger.info(f"PM daily performance: {len(pm_daily_data)} PMs with new orders")
         
         bd_daily_data = get_daily_bd_performance(conn, target_date)
-        logger.info(f"BD daily performance: {len(bd_daily_data)} BDs with completed orders")
+        logger.info(f"BD daily performance: {len(bd_daily_data)} BDs with new orders")
         
         mtd_data = get_mtd_metrics(conn)
-        logger.info(f"MTD metrics: ${mtd_data['revenue']:,.2f} revenue, {mtd_data['sales_count']} sales")
+        logger.info(f"MTD metrics: ${mtd_data['revenue']:,.2f} revenue, {mtd_data['sales_count']} new jobs")
         
         ytd_data = get_ytd_metrics(conn)
-        logger.info(f"YTD metrics: ${ytd_data['revenue']:,.2f} revenue, {ytd_data['sales_count']} sales")
+        logger.info(f"YTD metrics: ${ytd_data['revenue']:,.2f} revenue, {ytd_data['sales_count']} new jobs")
         
         # Fetch recently shown accounts for freshness (skip in dry-run mode to avoid API calls)
         recently_shown = set()
@@ -1408,7 +1446,7 @@ def main():
         export_data = assemble_export_data(
             target_date, invoice_data, estimate_data, 
             pm_open_data, bd_open_data, pm_daily_data, bd_daily_data,
-            mtd_data, ytd_data, ai_insights
+            mtd_data, ytd_data, ai_insights, daily_new_jobs
         )
         
         if args.dry_run:

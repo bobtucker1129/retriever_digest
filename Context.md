@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-01-23  
+> **Last Updated:** 2026-01-24  
 > **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** All enhancements deployed - weekly highlights fixed, AI logging added, ready for PrintSmith server setup
+> **Status:** Production email verified, white logo deployed, PM/BD tables metric changed to "new orders" (ordereddate), ready for PrintSmith server setup
 
 ---
 
@@ -207,7 +207,63 @@ EXPORT_API_SECRET=...              # Must match web app
 
 ---
 
+## DNS & Email Configuration
+
+### Domain: boonegraphics.net
+- **Registrar:** Register.com (Network Solutions)
+- **DNS Provider:** Cloudflare (moved from Wix 2026-01-24)
+- **Nameservers:** `jay.ns.cloudflare.com`, `laura.ns.cloudflare.com`
+
+### Resend Email Configuration
+- **Domain:** boonegraphics.net (fully verified)
+- **Sender:** `Retriever Digest <digest@boonegraphics.net>`
+- **DNS Records Added:**
+  - DKIM: `resend._domainkey` TXT record
+  - SPF: `send` TXT record (`v=spf1 include:amazonses.com ~all`)
+  - MX: `send` MX record (`feedback-smtp.us-east-1.amazonses.com`)
+
+### Important: VPN Record
+The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange cloud), otherwise VPN connections will fail.
+
+---
+
 ## Session History
+
+### 2026-01-24 (Session 9): White Logo & PM/BD Metric Change
+- **Logo Fix:** Updated logo URL to white PNG version for visibility on dark red background
+  - Changed `LOGO_URL` in both `daily-digest.ts` and `weekly-digest.ts`
+  - New URL: `https://www.booneproofs.net/email/Retriever_Logo_White.png`
+  - Removed CSS `filter: brightness(0) invert(1)` (not supported in email clients)
+- **PM/BD Tables Metric:** Changed from "orders picked up/closed out" to "new orders created"
+  - Updated `get_daily_pm_performance()` and `get_daily_bd_performance()` in `printsmith_export.py`
+  - Now uses `ordereddate` instead of `pickupdate`
+  - Removed `onpendinglist = false` filter (not relevant for new orders)
+  - Better day-to-day metric since pickups don't happen every day
+- **Files Modified:**
+  - `src/lib/daily-digest.ts` - White logo URL
+  - `src/lib/weekly-digest.ts` - White logo URL
+  - `export/printsmith_export.py` - PM/BD queries use `ordereddate`
+
+### 2026-01-24 (Session 8): Production Email Setup & "New Jobs" Metric
+- **Email Domain Verification:** Successfully configured Resend with boonegraphics.net
+  - Moved DNS from Wix to Cloudflare (Wix doesn't support MX records on subdomains)
+  - Added DKIM, SPF, and MX records for Resend verification
+  - Domain fully verified with all green lights
+  - EMAIL_FROM now: `Retriever Digest <digest@boonegraphics.net>`
+- **Logo Fix:** Uploaded Retriever_Logo.svg to https://www.booneproofs.net/email/
+- **VPN Fix:** Changed `vpn` A record in Cloudflare from "Proxied" to "DNS only"
+- **Metric Improvement:** Replaced "Orders Completed" with "New Jobs"
+  - Old metric: Counted completed/closed orders (by `pickupdate`) - redundant with Revenue
+  - New metric: Counts jobs created (by `ordereddate`) - shows pipeline growth
+  - Now displays: Revenue ($), New Jobs (#), Estimates (#), New Customers (#)
+  - Provides well-rounded, non-redundant analytics
+- **RENDER_API_URL Fix:** Corrected URL from `retriever-daily-digest` to `retriever-digest`
+- **Files Modified:**
+  - `export/printsmith_export.py` - Added `get_new_jobs_created()`, updated MTD/YTD queries
+  - `src/lib/daily-digest.ts` - Changed labels to "New Jobs"
+  - `src/lib/weekly-digest.ts` - Changed labels to "New Jobs"
+  - `src/app/(admin)/goals/GoalForm.tsx` - Changed label to "New Jobs"
+  - `.env` - Updated EMAIL_FROM and RENDER_API_URL
 
 ### 2026-01-23 (Session 7): Weekly Digest Audit & AI Logging
 - **Problem 1:** Weekly highlights not showing bold account names (showing old data format)
@@ -329,11 +385,14 @@ EXPORT_API_SECRET=...              # Must match web app
 ### Remaining Tasks
 1. ✅ **Commit changes** - All enhancements committed and pushed
 2. ✅ **Deploy to Render** - Auto-deployed via GitHub push
-3. **Verify `ANTHROPIC_API_KEY`** in Render environment variables
-4. **Set up Render cron jobs** for automated daily/weekly digests
-5. **Phase 3**: Install export script on PrintSmith Windows server
-6. **Phase 4**: End-to-end testing
-7. **Phase 5**: Go live
+3. ✅ **Email domain verified** - Resend configured with boonegraphics.net via Cloudflare
+4. ✅ **Logo accessible** - https://www.booneproofs.net/email/Retriever_Logo_White.png (white PNG for email compatibility)
+5. ✅ **Update Render EMAIL_FROM** - Changed to `Retriever Digest <digest@boonegraphics.net>`
+6. **Test production email** - Send test from admin portal
+7. **Set up Render cron jobs** for automated daily/weekly digests
+8. **Phase 3**: Install export script on PrintSmith Windows server
+9. **Phase 4**: End-to-end testing
+10. **Phase 5**: Go live
 
 ### Optional Improvements
 - Add more program accounts to exclusion list as needed
