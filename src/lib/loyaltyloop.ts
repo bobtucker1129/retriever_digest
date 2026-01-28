@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * LoyaltyLoop API Client
  * Fetches customer testimonials for inclusion in digest emails
