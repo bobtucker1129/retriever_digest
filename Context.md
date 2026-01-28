@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-01-24  
+> **Last Updated:** 2026-01-27  
 > **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** Production email verified, white logo deployed, PM/BD tables metric changed to "new orders" (ordereddate), ready for PrintSmith server setup
+> **Status:** Production email tested, logo optimized for Gmail (27KB), weekly test email support added, SPF fix identified for deliverability
 
 ---
 
@@ -222,12 +222,45 @@ EXPORT_API_SECRET=...              # Must match web app
   - SPF: `send` TXT record (`v=spf1 include:amazonses.com ~all`)
   - MX: `send` MX record (`feedback-smtp.us-east-1.amazonses.com`)
 
+### SPF Fix Required (2026-01-27)
+Emails going to spam because main domain SPF doesn't include Amazon SES.
+
+**Current main domain SPF:**
+```
+v=spf1 mx ip4:185.230.63.171 ip4:185.230.63.186 ip4:185.230.63.107 ip4:23.236.62.147 include:_spf.google.com include:_spf.salesforce.com include:sendgrid.net ~all
+```
+
+**Required fix:** Add `include:amazonses.com` before `~all`:
+```
+v=spf1 mx ip4:185.230.63.171 ip4:185.230.63.186 ip4:185.230.63.107 ip4:23.236.62.147 include:_spf.google.com include:_spf.salesforce.com include:sendgrid.net include:amazonses.com ~all
+```
+
 ### Important: VPN Record
 The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange cloud), otherwise VPN connections will fail.
 
 ---
 
 ## Session History
+
+### 2026-01-27 (Session 10): Email Testing & Deliverability Fixes
+- **PM/BD Tables Fix:** Committed and deployed `ordereddate` logic for PM/BD performance tables
+- **Logo Optimization:** Reduced logo from 226KB to 27KB for Gmail compatibility
+  - Original was timing out in Gmail's image proxy
+  - New URL: `https://www.booneproofs.net/email/Retriever_Logo_White_smaller.png`
+- **Weekly Test Email:** Added support for testing weekly digest emails
+  - `test-email` route now accepts `type` parameter ('daily' or 'weekly')
+  - Testing page passes active preview type when sending
+  - Button shows "Send Weekly Test" or "Send Daily Test" based on context
+- **EMAIL_FROM Fix:** Removed quotes from Render env var (was breaking Resend API)
+- **SPF Deliverability Issue:** Identified missing `include:amazonses.com` on main domain
+  - Emails were going to spam because SPF check failed
+  - Fix: Add `include:amazonses.com` to main domain's SPF record in Cloudflare
+  - Current SPF on `boonegraphics.net` doesn't include Amazon SES (Resend's sender)
+- **Files Modified:**
+  - `src/lib/daily-digest.ts` - Optimized logo URL
+  - `src/lib/weekly-digest.ts` - Optimized logo URL
+  - `src/app/api/test-email/route.ts` - Added weekly digest support
+  - `src/app/(admin)/testing/page.tsx` - Pass type to test email, dynamic button text
 
 ### 2026-01-24 (Session 9): White Logo & PM/BD Metric Change
 - **Logo Fix:** Updated logo URL to white PNG version for visibility on dark red background
@@ -386,13 +419,14 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 1. ✅ **Commit changes** - All enhancements committed and pushed
 2. ✅ **Deploy to Render** - Auto-deployed via GitHub push
 3. ✅ **Email domain verified** - Resend configured with boonegraphics.net via Cloudflare
-4. ✅ **Logo accessible** - https://www.booneproofs.net/email/Retriever_Logo_White.png (white PNG for email compatibility)
-5. ✅ **Update Render EMAIL_FROM** - Changed to `Retriever Digest <digest@boonegraphics.net>`
-6. **Test production email** - Send test from admin portal
-7. **Set up Render cron jobs** for automated daily/weekly digests
-8. **Phase 3**: Install export script on PrintSmith Windows server
-9. **Phase 4**: End-to-end testing
-10. **Phase 5**: Go live
+4. ✅ **Logo accessible** - https://www.booneproofs.net/email/Retriever_Logo_White_smaller.png (optimized 27KB for Gmail)
+5. ✅ **Update Render EMAIL_FROM** - Changed to `Retriever Digest <digest@boonegraphics.net>` (no quotes)
+6. ✅ **Test production email** - Tested daily and weekly from admin portal
+7. **Fix SPF record** - Add `include:amazonses.com` to main domain SPF in Cloudflare (deliverability fix)
+8. **Set up Render cron jobs** for automated daily/weekly digests
+9. **Phase 3**: Install export script on PrintSmith Windows server
+10. **Phase 4**: End-to-end testing
+11. **Phase 5**: Go live
 
 ### Optional Improvements
 - Add more program accounts to exclusion list as needed
