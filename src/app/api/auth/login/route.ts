@@ -17,8 +17,16 @@ export async function POST(request: NextRequest) {
 
   const adminPassword = process.env.ADMIN_PASSWORD;
 
+  // Debug logging (check Render logs to diagnose login issues)
+  console.log('[Login] Attempt received');
+  console.log('[Login] ADMIN_PASSWORD env var set:', !!adminPassword);
+  console.log('[Login] ADMIN_PASSWORD length:', adminPassword?.length || 0);
+  console.log('[Login] Submitted password length:', password?.length || 0);
+  console.log('[Login] First char match:', adminPassword && password ? adminPassword[0] === password[0] : 'N/A');
+  console.log('[Login] Last char match:', adminPassword && password ? adminPassword[adminPassword.length - 1] === password[password.length - 1] : 'N/A');
+
   if (!adminPassword) {
-    console.error('ADMIN_PASSWORD environment variable not set');
+    console.error('[Login] ADMIN_PASSWORD environment variable not set');
     return NextResponse.json(
       { error: 'Server configuration error' },
       { status: 500 }
@@ -26,8 +34,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (password !== adminPassword) {
+    console.log('[Login] Password mismatch - lengths:', password?.length, 'vs', adminPassword.length);
     return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
   }
+  
+  console.log('[Login] Password accepted');
 
   const sessionToken = createSessionToken();
   const expiresAt = new Date();
