@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-01-27  
+> **Last Updated:** 2026-01-28  
 > **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** Production email tested, logo optimized for Gmail (27KB), weekly test email support added, SPF fix identified for deliverability
+> **Status:** LoyaltyLoop customer testimonials integrated, login debugging added, DEFINITIONS.md created
 
 ---
 
@@ -242,6 +242,31 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 
 ## Session History
 
+### 2026-01-28 (Session 11): LoyaltyLoop Integration & Documentation
+- **DEFINITIONS.md Created:** Comprehensive metric definitions document
+  - Documents all digest sections: Yesterday's Numbers, Highlights, PM/BD tables, etc.
+  - Explains date fields (pickupdate vs ordereddate)
+  - Lists valid PMs and BDs, excluded accounts
+  - Added to AgentClose rule for ongoing maintenance
+- **LoyaltyLoop Testimonials Integration:** Customer feedback in digest emails
+  - Created `src/lib/loyaltyloop.ts` API client
+  - Fetches 4-5 star testimonials from LoyaltyLoop API
+  - Prioritizes new testimonials (last 30 days), falls back to older
+  - "Customer Feedback" section added near bottom of digest (before Daily Inspiration)
+  - Requires `LOYALTYLOOP_API_KEY` environment variable on Render
+  - **Note:** Only "published" testimonials appear in API - must approve in LoyaltyLoop dashboard
+- **Login Debug Logging:** Added password length/match logging to diagnose auth issues
+  - Discovered Render ADMIN_PASSWORD was different from local .env
+  - Logs help troubleshoot without revealing actual passwords
+- **Files Created:**
+  - `DEFINITIONS.md` - Metric definitions reference
+  - `src/lib/loyaltyloop.ts` - LoyaltyLoop API client
+- **Files Modified:**
+  - `src/lib/daily-digest.ts` - Added testimonials section
+  - `src/app/api/auth/login/route.ts` - Debug logging
+  - `.cursor/rules/AgentClose.md` - Added DEFINITIONS.md to update checklist
+  - `.env.example` - Added LOYALTYLOOP_API_KEY
+
 ### 2026-01-27 (Session 10): Email Testing & Deliverability Fixes
 - **PM/BD Tables Fix:** Committed and deployed `ordereddate` logic for PM/BD performance tables
 - **Logo Optimization:** Reduced logo from 226KB to 27KB for Gmail compatibility
@@ -428,9 +453,17 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 10. **Phase 4**: End-to-end testing
 11. **Phase 5**: Go live
 
+### LoyaltyLoop Integration ✅ COMPLETE
+- ✅ API client created (`src/lib/loyaltyloop.ts`)
+- ✅ Customer Feedback section added to daily digest
+- ✅ Prioritizes new testimonials (last 30 days)
+- ✅ Deployed to Render with `LOYALTYLOOP_API_KEY` configured
+- **Action Required:** Publish recent testimonials in LoyaltyLoop dashboard (only published ones appear in API)
+
 ### Optional Improvements
 - Add more program accounts to exclusion list as needed
 - Weekly digest could use `generateRichMotivationalSummary()` for more specific content
+- Add testimonials to weekly digest (currently daily only)
 
 ---
 
