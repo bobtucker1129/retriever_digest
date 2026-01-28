@@ -18,12 +18,20 @@ When the user types `/AgentClose` or asks to close/end the agent session, perfor
 - Add any test results or verification notes
 - Mark the next phase as ready if applicable
 
-### 3. Check for Uncommitted Changes
+### 3. Update DEFINITIONS.md
+If any metric definitions were discussed, clarified, or changed during the session:
+- Add new terms to the appropriate section
+- Update existing definitions if the logic changed
+- Add new excluded accounts if identified
+- Document any new date fields or amount fields discovered
+- Update the "Last Updated" date at the top
+
+### 4. Check for Uncommitted Changes
 - Run `git status` to identify uncommitted changes
 - List any modified files that should be committed
 - Warn the user if critical files (like export scripts, config files) have uncommitted changes
 
-### 4. Provide Session Summary
+### 5. Provide Session Summary
 Output a brief summary including:
 - What was accomplished this session
 - Current project status (which phase, what's next)
@@ -48,6 +56,7 @@ Output a brief summary including:
 ### Documents Updated
 - ✅ Context.md
 - ✅ DEPLOYMENT.md
+- ✅ DEFINITIONS.md (if definitions changed)
 
 ### Recommended Next Session
 Start with: "[suggested command or action]"

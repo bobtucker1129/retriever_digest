@@ -18,6 +18,7 @@ import {
   type RecentDigestSummary,
 } from '@/lib/ai-content';
 import { sendEmail } from '@/lib/email';
+import { getRecentTestimonials, formatTestimonialLocation, type Testimonial } from '@/lib/loyaltyloop';
 
 // BooneGraphics Brand Colors
 const BRAND_RED = '#B91C1C';
@@ -181,6 +182,31 @@ function renderAIInsights(insights: AIInsight[]): string {
       ` : ''}
     </div>
   `).join('');
+}
+
+function renderTestimonialsSection(testimonials: Testimonial[]): string {
+  if (!testimonials || testimonials.length === 0) return '';
+  
+  const testimonialCards = testimonials.map(t => {
+    const location = formatTestimonialLocation(t);
+    const locationLine = location ? `${location} · ${t.display_date}` : t.display_date;
+    
+    return `
+      <div style="background-color: #f0fdf4; border-left: 3px solid #22c55e; padding: 12px; margin-bottom: 12px; border-radius: 0 2px 2px 0;">
+        <p style="margin: 0 0 8px 0; font-style: italic; font-size: 13px; color: #166534; line-height: 1.4;">"${t.text}"</p>
+        <p style="margin: 0; font-size: 12px; color: #15803d; font-weight: 600;">— ${t.name}</p>
+        ${locationLine ? `<p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">${locationLine}</p>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <!-- Customer Feedback -->
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Customer Feedback</h2>
+      ${testimonialCards}
+    </div>
+  `;
 }
 
 export async function getLatestDigestData(): Promise<DigestDataPayload | null> {
@@ -468,10 +494,11 @@ export async function buildRichAIContext(
 
 export async function generateDailyDigest(recipientName: string): Promise<string> {
   // Fetch all data in parallel for efficiency
-  const [digestData, previousData, goals] = await Promise.all([
+  const [digestData, previousData, goals, testimonials] = await Promise.all([
     getLatestDigestData(),
     getPreviousDayDigestData(),
     prisma.goal.findMany(),
+    getRecentTestimonials(2),
   ]);
   
   const aiContent = await generateAIContent();
@@ -654,6 +681,8 @@ export async function generateDailyDigest(recipientName: string): Promise<string
       ${renderProgressBar(metrics.yearToDateNewCustomers, annual.newCustomers, 'New Customers')}
     </div>
 
+    ${renderTestimonialsSection(testimonials)}
+
     <!-- AI Quote/Joke -->
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Daily Inspiration</h2>
@@ -728,10 +757,11 @@ export async function generateDailyDigestWithMockFallback(
   recipientName: string
 ): Promise<{ html: string; isMockData: boolean }> {
   // Fetch all data in parallel
-  const [digestData, previousData, goals] = await Promise.all([
+  const [digestData, previousData, goals, testimonials] = await Promise.all([
     getLatestDigestData(),
     getPreviousDayDigestData(),
     prisma.goal.findMany(),
+    getRecentTestimonials(2),
   ]);
   
   const isMockData = digestData === null;
@@ -902,6 +932,8 @@ export async function generateDailyDigestWithMockFallback(
       ${renderProgressBar(metrics.yearToDateEstimatesCreated, annual.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.yearToDateNewCustomers, annual.newCustomers, 'New Customers')}
     </div>
+
+    ${renderTestimonialsSection(testimonials)}
 
     <!-- AI Quote/Joke -->
     <div style="padding: 0 20px 16px;">
