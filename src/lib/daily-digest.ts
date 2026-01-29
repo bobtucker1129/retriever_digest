@@ -20,6 +20,14 @@ import {
 import { sendEmail } from '@/lib/email';
 import { getRecentTestimonials, formatTestimonialLocation, type Testimonial } from '@/lib/loyaltyloop';
 
+// Shoutout type for team messages
+export interface ShoutoutWithRecipient {
+  id: string;
+  message: string;
+  recipientName: string;
+  createdAt: Date;
+}
+
 // BooneGraphics Brand Colors
 const BRAND_RED = '#B91C1C';
 const BRAND_RED_DARK = '#991B1B';
@@ -205,6 +213,64 @@ function renderTestimonialsSection(testimonials: Testimonial[]): string {
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Customer Feedback</h2>
       ${testimonialCards}
+    </div>
+  `;
+}
+
+/**
+ * Get all pending shoutouts from the database.
+ * Returns shoutouts with recipient name for display.
+ */
+export async function getPendingShoutouts(): Promise<ShoutoutWithRecipient[]> {
+  const shoutouts = await prisma.shoutout.findMany({
+    include: {
+      recipient: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return shoutouts.map(s => ({
+    id: s.id,
+    message: s.message,
+    recipientName: s.recipient.name,
+    createdAt: s.createdAt,
+  }));
+}
+
+/**
+ * Delete shoutouts by their IDs (called after digest is sent).
+ */
+export async function deleteShoutouts(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  
+  await prisma.shoutout.deleteMany({
+    where: {
+      id: { in: ids },
+    },
+  });
+  
+  console.log(`[Shoutouts] Deleted ${ids.length} shoutouts after digest send`);
+}
+
+function renderShoutoutsSection(shoutouts: ShoutoutWithRecipient[]): string {
+  if (!shoutouts || shoutouts.length === 0) return '';
+  
+  const shoutoutCards = shoutouts.map(s => `
+    <div style="background-color: #eff6ff; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: 12px; border-radius: 0 2px 2px 0;">
+      <p style="margin: 0 0 4px 0; font-size: 12px; color: #1d4ed8; font-weight: 600;">Message from ${s.recipientName}</p>
+      <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.4;">"${s.message}"</p>
+    </div>
+  `).join('');
+
+  return `
+    <!-- Team Shoutouts -->
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Team Shoutouts</h2>
+      ${shoutoutCards}
     </div>
   `;
 }
@@ -492,13 +558,14 @@ export async function buildRichAIContext(
   };
 }
 
-export async function generateDailyDigest(recipientName: string): Promise<string> {
+export async function generateDailyDigest(recipientName: string, shoutouts?: ShoutoutWithRecipient[]): Promise<string> {
   // Fetch all data in parallel for efficiency
-  const [digestData, previousData, goals, testimonials] = await Promise.all([
+  const [digestData, previousData, goals, testimonials, pendingShoutouts] = await Promise.all([
     getLatestDigestData(),
     getPreviousDayDigestData(),
     prisma.goal.findMany(),
     getRecentTestimonials(2),
+    shoutouts !== undefined ? Promise.resolve(shoutouts) : getPendingShoutouts(),
   ]);
   
   const aiContent = await generateAIContent();
@@ -567,6 +634,8 @@ export async function generateDailyDigest(recipientName: string): Promise<string
 
     <!-- Motivational Section -->
     ${renderMotivationalSection(motivational)}
+
+    ${renderShoutoutsSection(pendingShoutouts)}
 
     <!-- Daily Summary -->
     <div style="padding: 16px 20px;">
@@ -754,14 +823,16 @@ const MOCK_DIGEST_DATA: DigestDataPayload = {
 };
 
 export async function generateDailyDigestWithMockFallback(
-  recipientName: string
-): Promise<{ html: string; isMockData: boolean }> {
+  recipientName: string,
+  shoutouts?: ShoutoutWithRecipient[]
+): Promise<{ html: string; isMockData: boolean; shoutoutIds: string[] }> {
   // Fetch all data in parallel
-  const [digestData, previousData, goals, testimonials] = await Promise.all([
+  const [digestData, previousData, goals, testimonials, pendingShoutouts] = await Promise.all([
     getLatestDigestData(),
     getPreviousDayDigestData(),
     prisma.goal.findMany(),
     getRecentTestimonials(2),
+    shoutouts !== undefined ? Promise.resolve(shoutouts) : getPendingShoutouts(),
   ]);
   
   const isMockData = digestData === null;
@@ -800,6 +871,9 @@ export async function generateDailyDigestWithMockFallback(
   // Generate motivational summary with full context
   const motivational = await generateRichMotivationalSummary(richContext);
 
+  // Collect shoutout IDs for deletion after send
+  const shoutoutIds = pendingShoutouts.map(s => s.id);
+
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -819,6 +893,8 @@ export async function generateDailyDigestWithMockFallback(
 
     <!-- Motivational Section -->
     ${renderMotivationalSection(motivational)}
+
+    ${renderShoutoutsSection(pendingShoutouts)}
 
     <!-- Daily Summary -->
     <div style="padding: 16px 20px;">
@@ -952,13 +1028,15 @@ export async function generateDailyDigestWithMockFallback(
 </html>
   `.trim();
 
-  return { html, isMockData };
+  return { html, isMockData, shoutoutIds };
 }
 
 export async function sendDailyDigest(): Promise<SendDigestResult> {
-  const recipients = await prisma.recipient.findMany({
-    where: { active: true },
-  });
+  // Fetch recipients and shoutouts in parallel
+  const [recipients, shoutouts] = await Promise.all([
+    prisma.recipient.findMany({ where: { active: true } }),
+    getPendingShoutouts(),
+  ]);
 
   const result: SendDigestResult = {
     sent: 0,
@@ -976,7 +1054,8 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
 
   for (const recipient of recipients) {
     try {
-      const html = await generateDailyDigest(recipient.name);
+      // Pass shoutouts to avoid re-fetching for each recipient
+      const html = await generateDailyDigest(recipient.name, shoutouts);
       const emailResult = await sendEmail({
         to: recipient.email,
         subject,
@@ -997,6 +1076,11 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
       result.failed++;
       result.errors.push(`${recipient.email}: ${errorMessage}`);
     }
+  }
+
+  // Delete shoutouts after sending (they've been included in the digest)
+  if (result.sent > 0 && shoutouts.length > 0) {
+    await deleteShoutouts(shoutouts.map(s => s.id));
   }
 
   console.log(`[Daily Digest] Complete - Sent: ${result.sent}, Failed: ${result.failed}`);

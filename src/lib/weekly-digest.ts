@@ -4,7 +4,8 @@ import prisma from '@/lib/db';
 import { GoalType } from '@/generated/prisma/client';
 import { generateAIContent, generateMotivationalSummary, type AIContent, type MotivationalSummary, type DigestMetricsForAI } from '@/lib/ai-content';
 import { sendEmail } from '@/lib/email';
-import type { DigestDataPayload, PerformanceData } from '@/lib/daily-digest';
+import type { DigestDataPayload, PerformanceData, ShoutoutWithRecipient } from '@/lib/daily-digest';
+import { getPendingShoutouts, deleteShoutouts } from '@/lib/daily-digest';
 
 // BooneGraphics Brand Colors
 const BRAND_RED = '#B91C1C';
@@ -309,13 +310,33 @@ function renderAIContent(aiContent: AIContent): string {
   }
 }
 
+function renderShoutoutsSection(shoutouts: ShoutoutWithRecipient[]): string {
+  if (!shoutouts || shoutouts.length === 0) return '';
+  
+  const shoutoutCards = shoutouts.map(s => `
+    <div style="background-color: #eff6ff; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: 12px; border-radius: 0 2px 2px 0;">
+      <p style="margin: 0 0 4px 0; font-size: 12px; color: #1d4ed8; font-weight: 600;">Message from ${s.recipientName}</p>
+      <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.4;">"${s.message}"</p>
+    </div>
+  `).join('');
+
+  return `
+    <!-- Team Shoutouts -->
+    <div style="padding: 0 20px 16px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Team Shoutouts</h2>
+      ${shoutoutCards}
+    </div>
+  `;
+}
+
 function generateWeeklyDigestHTML(
   recipientName: string,
   data: WeeklyDigestData,
   monthlyGoal: { salesRevenue: number; salesCount: number; estimatesCreated: number; newCustomers: number },
   annualGoal: { salesRevenue: number; salesCount: number; estimatesCreated: number; newCustomers: number },
   aiContent: AIContent,
-  motivational: MotivationalSummary
+  motivational: MotivationalSummary,
+  shoutouts: ShoutoutWithRecipient[] = []
 ): string {
   const weekRangeStr = formatWeekRange(data.weekStartDate, data.weekEndDate);
   
@@ -338,6 +359,8 @@ function generateWeeklyDigestHTML(
 
     <!-- Motivational Section -->
     ${renderMotivationalSection(motivational)}
+
+    ${renderShoutoutsSection(shoutouts)}
 
     <!-- This Week's Wins -->
     <div style="padding: 16px 20px;">
@@ -501,10 +524,13 @@ function generateWeeklyDigestHTML(
   `.trim();
 }
 
-export async function generateWeeklyDigest(recipientName: string): Promise<string> {
-  const weeklyData = await getWeeklyDigestData();
-  const goals = await prisma.goal.findMany();
-  const aiContent = await generateAIContent();
+export async function generateWeeklyDigest(recipientName: string, shoutouts?: ShoutoutWithRecipient[]): Promise<string> {
+  const [weeklyData, goals, aiContent, pendingShoutouts] = await Promise.all([
+    getWeeklyDigestData(),
+    prisma.goal.findMany(),
+    generateAIContent(),
+    shoutouts !== undefined ? Promise.resolve(shoutouts) : getPendingShoutouts(),
+  ]);
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
   const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
@@ -558,7 +584,7 @@ export async function generateWeeklyDigest(recipientName: string): Promise<strin
       weekOverWeekOrdersChange: 0,
     };
     const motivational = await generateMotivationalSummary(metricsForAI);
-    return generateWeeklyDigestHTML(recipientName, emptyData, monthly, annual, aiContent, motivational);
+    return generateWeeklyDigestHTML(recipientName, emptyData, monthly, annual, aiContent, motivational, pendingShoutouts);
   }
 
   const metricsForAI: DigestMetricsForAI = {
@@ -572,7 +598,7 @@ export async function generateWeeklyDigest(recipientName: string): Promise<strin
   };
   const motivational = await generateMotivationalSummary(metricsForAI);
 
-  return generateWeeklyDigestHTML(recipientName, weeklyData, monthly, annual, aiContent, motivational);
+  return generateWeeklyDigestHTML(recipientName, weeklyData, monthly, annual, aiContent, motivational, pendingShoutouts);
 }
 
 export interface SendWeeklyDigestResult {
@@ -582,9 +608,11 @@ export interface SendWeeklyDigestResult {
 }
 
 export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
-  const recipients = await prisma.recipient.findMany({
-    where: { active: true },
-  });
+  // Fetch recipients and shoutouts in parallel
+  const [recipients, shoutouts] = await Promise.all([
+    prisma.recipient.findMany({ where: { active: true } }),
+    getPendingShoutouts(),
+  ]);
 
   const result: SendWeeklyDigestResult = {
     sent: 0,
@@ -602,7 +630,8 @@ export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
 
   for (const recipient of recipients) {
     try {
-      const html = await generateWeeklyDigest(recipient.name);
+      // Pass shoutouts to avoid re-fetching for each recipient
+      const html = await generateWeeklyDigest(recipient.name, shoutouts);
       const emailResult = await sendEmail({
         to: recipient.email,
         subject,
@@ -623,6 +652,11 @@ export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
       result.failed++;
       result.errors.push(`${recipient.email}: ${errorMessage}`);
     }
+  }
+
+  // Delete shoutouts after sending (they've been included in the digest)
+  if (result.sent > 0 && shoutouts.length > 0) {
+    await deleteShoutouts(shoutouts.map(s => s.id));
   }
 
   console.log(`[Weekly Digest] Complete - Sent: ${result.sent}, Failed: ${result.failed}`);
@@ -655,15 +689,19 @@ const MOCK_WEEKLY_DATA: WeeklyDigestData = {
 };
 
 export async function generateWeeklyDigestWithMockFallback(
-  recipientName: string
-): Promise<{ html: string; isMockData: boolean }> {
-  const weeklyData = await getWeeklyDigestData();
+  recipientName: string,
+  shoutouts?: ShoutoutWithRecipient[]
+): Promise<{ html: string; isMockData: boolean; shoutoutIds: string[] }> {
+  const [weeklyData, goals, aiContent, pendingShoutouts] = await Promise.all([
+    getWeeklyDigestData(),
+    prisma.goal.findMany(),
+    generateAIContent(),
+    shoutouts !== undefined ? Promise.resolve(shoutouts) : getPendingShoutouts(),
+  ]);
+  
   const hasNoData = !weeklyData || (weeklyData.thisWeek.revenue === 0 && weeklyData.lastWeek.revenue === 0);
   const isMockData = hasNoData;
   const dataToUse = isMockData ? MOCK_WEEKLY_DATA : weeklyData;
-
-  const goals = await prisma.goal.findMany();
-  const aiContent = await generateAIContent();
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
   const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
@@ -704,7 +742,10 @@ export async function generateWeeklyDigestWithMockFallback(
   };
   const motivational = await generateMotivationalSummary(metricsForAI);
 
-  const html = generateWeeklyDigestHTML(recipientName, dataToUse, monthly, annual, aiContent, motivational);
+  // Collect shoutout IDs for deletion after send
+  const shoutoutIds = pendingShoutouts.map(s => s.id);
 
-  return { html, isMockData };
+  const html = generateWeeklyDigestHTML(recipientName, dataToUse, monthly, annual, aiContent, motivational, pendingShoutouts);
+
+  return { html, isMockData, shoutoutIds };
 }

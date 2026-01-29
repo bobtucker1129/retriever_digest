@@ -788,3 +788,374 @@ main {
   font-size: 0.875rem;
   margin-top: 1rem;
 }
+
+/* Shoutouts Page Styles */
+.shoutouts-page {
+  max-width: 900px;
+}
+
+.shoutout-instructions {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.shoutout-email-section .section-title {
+  margin-bottom: 0.5rem;
+}
+
+.email-display {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+.email-address {
+  background: var(--bg-secondary);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.copy-button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.625rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  min-width: 80px;
+}
+
+.copy-button:hover {
+  background: var(--accent-hover);
+}
+
+.instructions-list {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.instructions-list h3 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.instructions-list ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.8;
+}
+
+.instructions-list li {
+  margin-bottom: 0.25rem;
+}
+
+.shoutout-pending {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+}
+
+.shoutout-pending .section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.count-badge {
+  background: var(--accent);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.shoutouts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.shoutout-card {
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 1rem;
+  border-left: 4px solid var(--accent);
+}
+
+.shoutout-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+  gap: 1rem;
+}
+
+.shoutout-author {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.shoutout-author strong {
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.shoutout-time {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.shoutout-message {
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-style: italic;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.delete-shoutout-button {
+  background: transparent;
+  color: #dc2626;
+  border: 1px solid #dc2626;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  white-space: nowrap;
+}
+
+.delete-shoutout-button:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.delete-shoutout-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .email-display {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .email-address {
+    text-align: center;
+    font-size: 0.875rem;
+  }
+
+  .copy-button {
+    width: 100%;
+  }
+
+  .shoutout-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .delete-shoutout-button {
+    align-self: flex-start;
+  }
+}
+
+/* Public Shoutout Form Styles */
+.shoutout-public-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%);
+}
+
+.shoutout-public-card {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+.shoutout-public-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.shoutout-public-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #b91c1c;
+  margin: 0 0 0.5rem 0;
+}
+
+.shoutout-public-header p {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.shoutout-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.shoutout-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.shoutout-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.shoutout-input,
+.shoutout-textarea {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.shoutout-input:focus,
+.shoutout-textarea:focus {
+  outline: none;
+  border-color: #b91c1c;
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.1);
+}
+
+.shoutout-input:disabled,
+.shoutout-textarea:disabled {
+  background: var(--bg-secondary);
+  cursor: not-allowed;
+}
+
+.shoutout-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.shoutout-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.shoutout-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin: 0;
+  padding: 0.75rem;
+  background: #fef2f2;
+  border-radius: 6px;
+  border-left: 3px solid #dc2626;
+}
+
+.shoutout-submit-button {
+  background: #b91c1c;
+  color: white;
+  border: none;
+  padding: 0.875rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.1s;
+}
+
+.shoutout-submit-button:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.shoutout-submit-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.shoutout-submit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.shoutout-success {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.shoutout-success-icon {
+  width: 64px;
+  height: 64px;
+  background: #dcfce7;
+  color: #16a34a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 0 auto 1rem;
+}
+
+.shoutout-success h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #16a34a;
+  margin: 0 0 0.5rem 0;
+}
+
+.shoutout-success p {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0 0 1.5rem 0;
+}
+
+.shoutout-footer {
+  text-align: center;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.shoutout-footer p {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .shoutout-public-card {
+    padding: 1.5rem;
+  }
+
+  .shoutout-public-header h1 {
+    font-size: 1.5rem;
+  }
+}
