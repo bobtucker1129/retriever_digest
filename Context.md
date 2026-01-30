@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-01-28  
 > **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** LoyaltyLoop customer testimonials integrated, login debugging added, DEFINITIONS.md created
+> **Status:** Team Shoutouts feature added, public submission form deployed
 
 ---
 
@@ -68,10 +68,13 @@ retriever-daily-digest/
 │   │   ├── (admin)/          # Admin portal pages
 │   │   │   ├── goals/        # Monthly/Annual goal management
 │   │   │   ├── recipients/   # Email recipient management
+│   │   │   ├── shoutouts/    # View/manage team shoutouts
 │   │   │   └── testing/      # Preview & send test digests
+│   │   ├── shoutout/         # Public shoutout submission form (no auth)
 │   │   ├── api/
 │   │   │   ├── digest/       # Daily/weekly digest triggers
 │   │   │   ├── export/       # Receives data from PrintSmith
+│   │   │   ├── shoutout/     # Shoutout inbound webhook (future use)
 │   │   │   └── preview/      # Generate digest previews
 │   │   └── (auth)/login/     # Password-protected login
 │   └── lib/
@@ -84,7 +87,7 @@ retriever-daily-digest/
 │   ├── printsmith_export.py  # Python script for PrintSmith
 │   └── requirements.txt      # Python dependencies
 ├── prisma/
-│   ├── schema.prisma         # Database schema
+│   ├── schema.prisma         # Database schema (includes Shoutout model)
 │   ├── seed.ts               # Sample data seeding
 │   └── migrations/           # Database migrations
 ├── DEPLOYMENT.md             # Step-by-step deployment guide
@@ -241,6 +244,36 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 ---
 
 ## Session History
+
+### 2026-01-28 (Session 12): Team Shoutouts Feature
+- **Team Shoutouts Feature:** Allow recipients to submit messages for inclusion in digests
+  - Added `Shoutout` model to Prisma schema with Recipient relationship
+  - Created public `/shoutout` page - no login required, validates email against recipients list
+  - Added admin Shoutouts tab to view pending messages and delete if needed
+  - Integrated "Team Shoutouts" section into daily and weekly digest emails
+  - Messages automatically deleted after being included in a digest
+  - Spam protection: max 3 pending shoutouts per person
+- **Originally planned email-based submission** but Resend Inbound not available in dashboard
+  - Pivoted to web form approach - simpler, no additional service setup needed
+  - Public URL: `https://retriever-digest.onrender.com/shoutout`
+- **Files Created:**
+  - `src/app/shoutout/page.tsx` - Public submission form
+  - `src/app/shoutout/actions.ts` - Form submission server action
+  - `src/app/(admin)/shoutouts/page.tsx` - Admin view
+  - `src/app/(admin)/shoutouts/actions.ts` - Admin actions
+  - `src/app/(admin)/shoutouts/ShoutoutsContent.tsx` - Admin UI component
+  - `src/app/api/shoutout/inbound/route.ts` - Webhook endpoint (kept for future use)
+  - `prisma/migrations/20260129022228_add_shoutout_model/` - Database migration
+- **Files Modified:**
+  - `prisma/schema.prisma` - Added Shoutout model
+  - `src/lib/daily-digest.ts` - Added shoutouts section rendering
+  - `src/lib/weekly-digest.ts` - Added shoutouts section rendering
+  - `src/components/Navigation.tsx` - Added Shoutouts tab
+  - `src/middleware.ts` - Added `/shoutout` to public paths
+  - `src/app/globals.css` - Added public form and admin page styles
+  - `.env.example` - Added shoutout-related env vars
+- **Deployed:** Committed and pushed to Render
+- **Export Run:** Ran PrintSmith export with VPN - Jan 27 data: $8,494.82 revenue, 23 new jobs
 
 ### 2026-01-28 (Session 11): LoyaltyLoop Integration & Documentation
 - **DEFINITIONS.md Created:** Comprehensive metric definitions document
@@ -459,6 +492,14 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 - ✅ Prioritizes new testimonials (last 30 days)
 - ✅ Deployed to Render with `LOYALTYLOOP_API_KEY` configured
 - **Action Required:** Publish recent testimonials in LoyaltyLoop dashboard (only published ones appear in API)
+
+### Team Shoutouts Feature ✅ COMPLETE
+- ✅ Public submission form at `/shoutout` (no login required)
+- ✅ Validates sender against recipients list
+- ✅ Admin Shoutouts tab to view/delete pending messages
+- ✅ Integrated into daily and weekly digests
+- ✅ Auto-cleanup after digest sends
+- **Share URL:** `https://retriever-digest.onrender.com/shoutout`
 
 ### Optional Improvements
 - Add more program accounts to exclusion list as needed
