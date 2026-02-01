@@ -291,7 +291,8 @@ export async function generateAIContent(recentContents: string[] = []): Promise<
 
 export async function generateNewCustomerShoutout(input: NewCustomerShoutoutInput): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  const salesRep = input.salesRep && input.salesRep.trim() ? input.salesRep.trim() : 'the team';
+  const salesRepRaw = input.salesRep && input.salesRep.trim() ? input.salesRep.trim() : '';
+  const salesRep = salesRepRaw && salesRepRaw.toLowerCase() !== 'house' ? salesRepRaw : 'The Team';
   const jobDescription = input.jobDescription && input.jobDescription.trim()
     ? input.jobDescription.trim()
     : 'their first estimate';
