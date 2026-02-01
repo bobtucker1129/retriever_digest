@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-02-01  
 > **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** Added Invoices Created ($) metric, 3-over-2 Yesterday's Numbers layout, and personalization work in progress (preview build error)
+> **Status:** Preview fixed, TestimonialDisplay migration applied, House→Team replacement deployed
 
 ---
 
@@ -255,6 +255,23 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
   - Current issue: local preview build failing due to duplicate `recipientFirstName` definition in `daily-digest.ts`
 - **Export Run:** Posted 2026-01-30 data; new jobs value logged at $9,176.81
 
+### 2026-02-01 (Session 15): Preview Fix + House→Team Replacement
+- **Preview Build Error Fixed:** Resolved duplicate `recipientFirstName` definition in `daily-digest.ts`
+  - Added missing `const recipientFirstName = getRecipientFirstName(recipientName)` in `generateDailyDigestWithMockFallback`
+- **TestimonialDisplay Migration:** Applied `20260201023017_add_testimonial_display` migration locally
+  - Testimonial de-dup tracking now functional
+  - Regenerated Prisma client with new model
+- **TypeScript Compilation Fixes:** Fixed Prisma JsonValue type casting issues
+  - Changed `as DigestDataPayload` to `as unknown as DigestDataPayload` in daily-digest.ts and weekly-digest.ts
+  - Resolved build failures on Render deployment
+- **House Sales Rep Replacement:** Implemented "House" → "The Team" in new customer shoutouts
+  - Modified `generateNewCustomerShoutout()` in `src/lib/ai-content.ts`
+  - Only affects NEW CUSTOMER ALERT messages, not BD Performance tables or other sections
+  - Makes shoutouts more natural when PM takes a house account
+- **Deployed:** All fixes committed and pushed to production
+  - Preview now working correctly locally and on Render
+  - Build successful with all type errors resolved
+
 ### 2026-02-01 (Session 13): Digest Enhancements & De-dup Tracking
 - **New Customer Shoutouts:** Added daily/weekly “NEW CUSTOMER ALERT” from first-ever estimates
   - Export now includes `newCustomerEstimates`
@@ -505,12 +522,12 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 5. ✅ **Update Render EMAIL_FROM** - Changed to `Retriever Digest <digest@boonegraphics.net>` (no quotes)
 6. ✅ **Test production email** - Tested daily and weekly from admin portal
 7. **Fix SPF record** - Add `include:amazonses.com` to main domain SPF in Cloudflare (deliverability fix)
-8. **Apply new migrations** - Deploy `TestimonialDisplay` migration on Render
-9. **Set up Render cron jobs** for automated daily/weekly digests
-10. **Phase 3**: Install export script on PrintSmith Windows server
-11. **Phase 4**: End-to-end testing
-12. **Phase 5**: Go live
-13. **Fix preview build error** - Resolve duplicate `recipientFirstName` definition and restore /api/preview/daily
+8. ✅ **Apply new migrations** - TestimonialDisplay migration deployed (shares same DB as local)
+9. ✅ **Fix preview build error** - recipientFirstName and TypeScript errors resolved
+10. **Set up Render cron jobs** for automated daily/weekly digests
+11. **Phase 3**: Install export script on PrintSmith Windows server
+12. **Phase 4**: End-to-end testing
+13. **Phase 5**: Go live
 
 ### LoyaltyLoop Integration ✅ COMPLETE
 - ✅ API client created (`src/lib/loyaltyloop.ts`)

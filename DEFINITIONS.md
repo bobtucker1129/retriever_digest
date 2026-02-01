@@ -159,7 +159,30 @@ Each testimonial shows:
 
 ---
 
-## 8. Excluded Accounts
+## 8. New Customer Shoutouts
+
+AI-generated alerts celebrating new customer estimates, displayed in both daily and weekly digests.
+
+| Term | Definition |
+|------|------------|
+| **NEW CUSTOMER ALERT** | Shoutout message for a first-time estimate from a new account |
+| **The Team** | Display name used when sales rep is "House" (PM-taken accounts) |
+
+### Logic
+
+- Shows accounts that received their first-ever estimate
+- Each alert includes: account name, sales rep, estimate value, job description
+- Messages are AI-generated with a professional, action-oriented tone
+
+### Sales Rep Display
+
+When a new customer estimate is taken by a project manager (house account), the sales rep is recorded as "House" in PrintSmith. To avoid awkward language like "Congratulations to House for securing...", the system automatically replaces "House" with "The Team" in new customer shoutout messages.
+
+**Note:** This replacement only affects new customer alert messages. The BD Performance table and all other sections still display "House" as-is.
+
+---
+
+## 9. Excluded Accounts
 
 These accounts have predictable scheduled orders (program work) and are **excluded** from Highlights and AI Insights to keep content actionable.
 
@@ -172,7 +195,7 @@ These accounts are still included in revenue totals and goal progress.
 
 ---
 
-## 9. Amount Fields
+## 10. Amount Fields
 
 PrintSmith has multiple amount fields. Here's what each represents:
 
