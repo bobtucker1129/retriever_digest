@@ -422,7 +422,7 @@ export async function getRecentInspirationContents(days: number = 14): Promise<s
   
   const contents: string[] = [];
   for (const digest of recentDigests) {
-    const data = digest.data as DigestDataPayload;
+    const data = digest.data as unknown as DigestDataPayload;
     const inspiration = data?.aiInspiration;
     if (inspiration?.content) {
       contents.push(inspiration.content);

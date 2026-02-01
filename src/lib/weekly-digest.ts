@@ -80,7 +80,7 @@ function aggregateMetricsFromDigestData(digestDataRecords: { data: unknown }[]):
   };
 
   for (const record of digestDataRecords) {
-    const data = record.data as DigestDataPayload;
+    const data = record.data as unknown as DigestDataPayload;
     if (data?.metrics) {
       metrics.revenue += data.metrics.dailyRevenue || 0;
       metrics.salesCount += data.metrics.dailySalesCount || 0;
@@ -99,7 +99,7 @@ function aggregatePerformanceData(
   const performanceMap = new Map<string, PerformanceData>();
 
   for (const record of digestDataRecords) {
-    const data = record.data as DigestDataPayload;
+    const data = record.data as unknown as DigestDataPayload;
     const performanceData = data?.[key];
     if (performanceData && Array.isArray(performanceData)) {
       for (const item of performanceData) {
@@ -129,7 +129,7 @@ function aggregateHighlights(digestDataRecords: { data: unknown }[]): string[] {
   const reversedRecords = [...digestDataRecords].reverse();
   
   for (const record of reversedRecords) {
-    const data = record.data as DigestDataPayload;
+    const data = record.data as unknown as DigestDataPayload;
     if (data?.highlights && Array.isArray(data.highlights)) {
       for (const highlight of data.highlights) {
         if (highlight.description) {
@@ -146,7 +146,7 @@ function aggregateNewCustomerEstimates(digestDataRecords: { data: unknown }[]): 
   const estimateMap = new Map<number, NewCustomerEstimate>();
   
   for (const record of digestDataRecords) {
-    const data = record.data as DigestDataPayload;
+    const data = record.data as unknown as DigestDataPayload;
     const estimates = data?.newCustomerEstimates;
     if (!estimates || !Array.isArray(estimates)) continue;
     
