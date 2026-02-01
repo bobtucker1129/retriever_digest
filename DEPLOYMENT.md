@@ -74,7 +74,7 @@ The middleware checks for cookie presence with basic validation.
 ### Step 1.1: Set Up Environment
 
 ```bash
-cd ~/Repository/retriever-daily-digest
+cd "/Users/tate/Library/CloudStorage/GoogleDrive-state@boonegraphics.net/Shared drives/LordTate/Repository/retriever-daily-digest"
 
 # Copy example env and fill in values
 cp .env.example .env
@@ -186,7 +186,7 @@ python3 printsmith_export.py
 ### Step 2.1: Push to GitHub
 
 ```bash
-cd ~/Repository/retriever-daily-digest
+cd "/Users/tate/Library/CloudStorage/GoogleDrive-state@boonegraphics.net/Shared drives/LordTate/Repository/retriever-daily-digest"
 
 # Initialize git if needed
 git init
@@ -249,6 +249,8 @@ After first deploy, open Render Shell and run:
 ```bash
 npx prisma migrate deploy
 ```
+
+**Note:** This must include the latest `TestimonialDisplay` migration for testimonial de-dup tracking.
 
 Or trigger via the Render dashboard → Shell.
 
@@ -379,7 +381,7 @@ python printsmith_export.py
 
 - [ ] Run export script manually on PrintSmith server
 - [ ] Verify data appears in Render database (check DigestData table)
-- [ ] Preview daily digest - should show real PrintSmith data
+- [ ] Preview daily digest - should show real PrintSmith data (local preview currently failing due to duplicate `recipientFirstName` definition)
 - [ ] Verify AI motivational summary appears at top (team-focused, positive tone)
 - [x] Send test email to yourself - Tested 2026-01-27
 - [ ] Verify email renders correctly in Gmail and Outlook (SPF fix needed for deliverability)
@@ -476,6 +478,8 @@ At the bottom of each digest, a rotating quote or joke:
 - Business/sales motivational quotes
 - Clean, workplace-appropriate humor
 - Automatic fallback if API fails
+- Also includes short thoughtful reflections/mini-poems
+- Avoids repeating recent inspirations based on DigestData cache
 
 ### AI Insights (from PrintSmith Data)
 The Python export script generates intelligent insights:

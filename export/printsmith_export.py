@@ -138,6 +138,35 @@ def get_new_jobs_created(conn, target_date):
         raise
 
 
+def get_invoices_created_amount(conn, target_date):
+    """
+    Query total dollar value of invoices created on a given date.
+    Uses ordereddate to match "Invoices Created" count.
+    """
+    logger.info(f"Querying invoice value for new jobs on {target_date}...")
+    
+    query = """
+        SELECT COALESCE(SUM(ib.subtotal), 0) AS invoices_created_amount
+        FROM invoicebase ib
+        JOIN invoice i ON ib.id = i.id
+        WHERE DATE(ib.ordereddate) = %s
+          AND ib.isdeleted = false
+          AND i.isdeleted = false
+          AND COALESCE(ib.voided, false) = false
+    """
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (target_date,))
+            row = cur.fetchone()
+            amount = float(row[0]) if row and row[0] else 0.0
+            logger.info(f"Invoice value for new jobs: ${amount:,.2f}")
+            return amount
+    except Exception as e:
+        logger.error(f"Error querying invoice value for new jobs: {e}")
+        raise
+
+
 def get_completed_invoices(conn, target_date):
     """
     Query yesterday's completed (posted) invoices.
@@ -264,6 +293,85 @@ def get_estimates_created(conn, target_date):
             
     except Exception as e:
         logger.error(f"Error querying estimates: {e}")
+        raise
+
+
+def get_new_customer_estimates(conn, target_date, limit=5):
+    """
+    Find new customers based on first-ever estimate created on target date.
+    Returns a list of estimate details for shoutouts.
+    """
+    logger.info(f"Querying new customer estimates on {target_date}...")
+    
+    # Exclude program accounts
+    excluded_accounts = tuple(EXCLUDED_ACCOUNT_IDS) or (0,)
+    
+    query = """
+        WITH candidates AS (
+            SELECT
+                ib.invoicenumber,
+                a.title AS customer_name,
+                ib.name AS account_name,
+                COALESCE(s.name, '') AS salesrep,
+                ib.subtotal,
+                ib.invoicetitle AS job_description,
+                ib.account_id,
+                ib.ordereddate,
+                ROW_NUMBER() OVER (PARTITION BY ib.account_id ORDER BY ib.subtotal DESC) AS rn
+            FROM estimate e
+            JOIN invoicebase ib ON e.id = ib.id
+            LEFT JOIN account a ON ib.account_id = a.id
+            LEFT JOIN salesrep s ON ib.salesrep_id = s.id
+            WHERE DATE(ib.ordereddate) = %s
+              AND ib.isdeleted = false
+              AND COALESCE(ib.voided, false) = false
+              AND ib.account_id NOT IN %s
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM estimate e2
+                  JOIN invoicebase ib2 ON e2.id = ib2.id
+                  WHERE ib2.account_id = ib.account_id
+                    AND DATE(ib2.ordereddate) < %s
+                    AND ib2.isdeleted = false
+                    AND COALESCE(ib2.voided, false) = false
+              )
+        )
+        SELECT
+            invoicenumber,
+            customer_name,
+            account_name,
+            salesrep,
+            subtotal,
+            job_description,
+            account_id,
+            ordereddate
+        FROM candidates
+        WHERE rn = 1
+        ORDER BY subtotal DESC
+        LIMIT %s
+    """
+    
+    items = []
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, (target_date, excluded_accounts, target_date, limit))
+            rows = cur.fetchall()
+            
+            for row in rows:
+                items.append({
+                    'accountId': row[6],
+                    'accountName': row[1] or row[2] or 'Unknown',
+                    'salesRep': row[3],
+                    'estimateValue': float(row[4]) if row[4] else 0.0,
+                    'jobDescription': row[5],
+                    'orderedDate': row[7].isoformat() if row[7] else None,
+                })
+            
+            logger.info(f"Found {len(items)} new customer estimate(s)")
+            return items
+            
+    except Exception as e:
+        logger.error(f"Error querying new customer estimates: {e}")
         raise
 
 
@@ -558,23 +666,19 @@ def get_mtd_metrics(conn):
             
             new_customers_query = """
                 SELECT COUNT(DISTINCT ib.account_id)
-                FROM invoicebase ib
-                JOIN invoice i ON ib.id = i.id
-                WHERE DATE(ib.pickupdate) >= %s
-                  AND DATE(ib.pickupdate) <= %s
-                  AND ib.onpendinglist = false
+                FROM estimate e
+                JOIN invoicebase ib ON e.id = ib.id
+                WHERE DATE(ib.ordereddate) >= %s
+                  AND DATE(ib.ordereddate) <= %s
                   AND ib.isdeleted = false
-                  AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
                   AND NOT EXISTS (
                       SELECT 1
-                      FROM invoicebase ib2
-                      JOIN invoice i2 ON ib2.id = i2.id
+                      FROM estimate e2
+                      JOIN invoicebase ib2 ON e2.id = ib2.id
                       WHERE ib2.account_id = ib.account_id
-                        AND DATE(ib2.pickupdate) < %s
-                        AND ib2.onpendinglist = false
+                        AND DATE(ib2.ordereddate) < %s
                         AND ib2.isdeleted = false
-                        AND i2.isdeleted = false
                         AND COALESCE(ib2.voided, false) = false
                   )
             """
@@ -646,23 +750,19 @@ def get_ytd_metrics(conn):
             
             new_customers_query = """
                 SELECT COUNT(DISTINCT ib.account_id)
-                FROM invoicebase ib
-                JOIN invoice i ON ib.id = i.id
-                WHERE DATE(ib.pickupdate) >= %s
-                  AND DATE(ib.pickupdate) <= %s
-                  AND ib.onpendinglist = false
+                FROM estimate e
+                JOIN invoicebase ib ON e.id = ib.id
+                WHERE DATE(ib.ordereddate) >= %s
+                  AND DATE(ib.ordereddate) <= %s
                   AND ib.isdeleted = false
-                  AND i.isdeleted = false
                   AND COALESCE(ib.voided, false) = false
                   AND NOT EXISTS (
                       SELECT 1
-                      FROM invoicebase ib2
-                      JOIN invoice i2 ON ib2.id = i2.id
+                      FROM estimate e2
+                      JOIN invoicebase ib2 ON e2.id = ib2.id
                       WHERE ib2.account_id = ib.account_id
-                        AND DATE(ib2.pickupdate) < %s
-                        AND ib2.onpendinglist = false
+                        AND DATE(ib2.ordereddate) < %s
                         AND ib2.isdeleted = false
-                        AND i2.isdeleted = false
                         AND COALESCE(ib2.voided, false) = false
                   )
             """
@@ -1212,7 +1312,8 @@ def post_to_api(data: dict) -> dict:
 
 def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data, bd_open_data, 
                          pm_daily_data, bd_daily_data, mtd_data, ytd_data, ai_insights,
-                         daily_new_jobs: int = 0) -> dict:
+                         daily_new_jobs: int = 0, daily_new_jobs_amount: float = 0.0,
+                         new_customer_estimates: list = None) -> dict:
     """Assemble all exported data into the API payload format."""
     
     # Extract biggest order from invoices
@@ -1286,14 +1387,17 @@ def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data,
             if item.get('name'):
                 shown_account_names.append(item['name'])
     
+    new_customer_estimates = new_customer_estimates or []
+    
     return {
         'export_date': target_date.isoformat(),
         'date': target_date.isoformat(),
         'metrics': {
             'dailyRevenue': invoice_data['total_revenue'],
             'dailySalesCount': daily_new_jobs,  # Now "new jobs created" instead of "orders completed"
+            'dailyInvoicesCreatedAmount': daily_new_jobs_amount,
             'dailyEstimatesCreated': estimate_data['estimate_count'],
-            'dailyNewCustomers': 0,  # Calculated separately if needed
+            'dailyNewCustomers': len(new_customer_estimates),
             'monthToDateRevenue': mtd_data['revenue'],
             'monthToDateSalesCount': mtd_data['sales_count'],
             'monthToDateEstimatesCreated': mtd_data['estimates_created'],
@@ -1324,6 +1428,7 @@ def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data,
         'topPM': top_pm,
         'topBD': top_bd,
         'aiInsights': ai_insights,
+        'newCustomerEstimates': new_customer_estimates,
         # Track what was shown for freshness/deduplication
         'shownInsights': {
             'date': target_date.isoformat(),
@@ -1411,8 +1516,14 @@ def main():
         daily_new_jobs = get_new_jobs_created(conn, target_date)
         logger.info(f"New jobs created: {daily_new_jobs}")
         
+        daily_new_jobs_amount = get_invoices_created_amount(conn, target_date)
+        logger.info(f"New jobs value: ${daily_new_jobs_amount:,.2f}")
+        
         estimate_data = get_estimates_created(conn, target_date)
         logger.info(f"Estimate export: {estimate_data['estimate_count']} estimates created")
+        
+        new_customer_estimates = get_new_customer_estimates(conn, target_date)
+        logger.info(f"New customer estimates: {len(new_customer_estimates)}")
         
         pm_open_data = get_pm_open_invoices(conn)
         logger.info(f"PM open invoices: {len(pm_open_data)} PMs with open invoices")
@@ -1446,7 +1557,8 @@ def main():
         export_data = assemble_export_data(
             target_date, invoice_data, estimate_data, 
             pm_open_data, bd_open_data, pm_daily_data, bd_daily_data,
-            mtd_data, ytd_data, ai_insights, daily_new_jobs
+            mtd_data, ytd_data, ai_insights, daily_new_jobs, daily_new_jobs_amount,
+            new_customer_estimates
         )
         
         if args.dry_run:

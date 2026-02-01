@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { generateDailyDigestWithMockFallback } from '@/lib/daily-digest';
+import { generateDailyDigestWithMockFallback, getRecentInspirationContents } from '@/lib/daily-digest';
 
 // Force dynamic rendering - don't cache at build time
 export const dynamic = 'force-dynamic';
@@ -7,7 +7,13 @@ export const fetchCache = 'force-no-store';
 
 export async function GET() {
   try {
-    const { html, isMockData } = await generateDailyDigestWithMockFallback('Preview User');
+    const recentInspirations = await getRecentInspirationContents(14);
+    const { html, isMockData } = await generateDailyDigestWithMockFallback(
+      'Preview User',
+      undefined,
+      undefined,
+      recentInspirations
+    );
 
     const response = new NextResponse(html, {
       status: 200,

@@ -53,3 +53,17 @@ model DigestData {
   data       Json
   createdAt  DateTime @default(now())
 }
+
+model TestimonialDisplay {
+  id                       String   @id @default(cuid())
+  testimonialId            String   @unique
+  text                     String
+  name                     String
+  company                  String?
+  score                    Int
+  date                     DateTime
+  numberOfTimesDisplayed   Int      @default(0)
+  lastShownAt              DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}

@@ -1,4 +1,4 @@
-# AgentClose Rule
+# AgentClose Command
 
 When the user types `/AgentClose` or asks to close/end the agent session, perform the following documentation updates before ending:
 

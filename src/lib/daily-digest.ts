@@ -6,6 +6,7 @@ import {
   generateAIContent, 
   generateMotivationalSummary,
   generateRichMotivationalSummary, 
+  generateNewCustomerShoutout,
   type AIContent, 
   type MotivationalSummary, 
   type DigestMetricsForAI,
@@ -18,7 +19,7 @@ import {
   type RecentDigestSummary,
 } from '@/lib/ai-content';
 import { sendEmail } from '@/lib/email';
-import { getRecentTestimonials, formatTestimonialLocation, type Testimonial } from '@/lib/loyaltyloop';
+import { getRecentTestimonials, formatTestimonialLocation, recordTestimonialDisplay, type Testimonial } from '@/lib/loyaltyloop';
 
 // Shoutout type for team messages
 export interface ShoutoutWithRecipient {
@@ -46,6 +47,7 @@ export interface SendDigestResult {
 export interface DigestMetrics {
   dailyRevenue: number;
   dailySalesCount: number;
+  dailyInvoicesCreatedAmount: number;
   dailyEstimatesCreated: number;
   dailyNewCustomers: number;
   monthToDateRevenue: number;
@@ -80,6 +82,15 @@ export interface AIInsight {
   }>;
 }
 
+export interface NewCustomerEstimate {
+  accountId: number;
+  accountName: string;
+  salesRep?: string;
+  estimateValue: number;
+  jobDescription?: string;
+  orderedDate?: string | null;
+}
+
 export interface DigestDataPayload {
   date: string;
   metrics: DigestMetrics;
@@ -87,6 +98,13 @@ export interface DigestDataPayload {
   bdPerformance: PerformanceData[];
   pmPerformance: PerformanceData[];
   aiInsights?: AIInsight[];
+  newCustomerEstimates?: NewCustomerEstimate[];
+  aiInspiration?: {
+    type: string;
+    content: string;
+    attribution?: string;
+    savedAt?: string;
+  };
 }
 
 function formatCurrency(amount: number): string {
@@ -110,6 +128,12 @@ function formatDate(dateStr: string): string {
     month: 'long',
     day: 'numeric',
   });
+}
+
+function getRecipientFirstName(name: string): string | undefined {
+  const trimmed = name?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.split(/\s+/)[0];
 }
 
 function calculateProgress(current: number, goal: number): number {
@@ -192,6 +216,40 @@ function renderAIInsights(insights: AIInsight[]): string {
   `).join('');
 }
 
+async function renderNewCustomerAlerts(estimates: NewCustomerEstimate[]): Promise<string> {
+  if (!estimates || estimates.length === 0) return '';
+  
+  const limited = estimates.slice(0, 3);
+  
+  const alertCards = await Promise.all(limited.map(async (estimate, index) => {
+    const accountName = estimate.accountName || (estimate as unknown as { customer_name?: string }).customer_name || 'Unknown';
+    const salesRep = estimate.salesRep || (estimate as unknown as { salesrep?: string }).salesrep || 'the team';
+    const estimateValue = formatCurrency(estimate.estimateValue || (estimate as unknown as { subtotal?: number }).subtotal || 0);
+    const jobDescription = estimate.jobDescription || (estimate as unknown as { job_description?: string }).job_description || '';
+    
+    const message = await generateNewCustomerShoutout({
+      accountName,
+      salesRep,
+      estimateValue,
+      jobDescription,
+    });
+    
+    return `
+      <div style="background-color: #fff7ed; border-left: 3px solid #f97316; padding: 12px; margin-bottom: ${index === limited.length - 1 ? '0' : '12px'}; border-radius: 0 2px 2px 0;">
+        <p style="margin: 0; font-size: 12px; color: #9a3412; font-weight: 700; letter-spacing: 0.4px;">NEW CUSTOMER ALERT</p>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #7c2d12; line-height: 1.4;">${message}</p>
+      </div>
+    `;
+  }));
+  
+  return `
+    <div style="padding: 12px 20px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">New Customer Shoutouts</h2>
+      ${alertCards.join('')}
+    </div>
+  `;
+}
+
 function renderTestimonialsSection(testimonials: Testimonial[]): string {
   if (!testimonials || testimonials.length === 0) return '';
   
@@ -259,8 +317,8 @@ export async function deleteShoutouts(ids: string[]): Promise<void> {
 function renderShoutoutsSection(shoutouts: ShoutoutWithRecipient[]): string {
   if (!shoutouts || shoutouts.length === 0) return '';
   
-  const shoutoutCards = shoutouts.map(s => `
-    <div style="background-color: #eff6ff; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: 12px; border-radius: 0 2px 2px 0;">
+  const shoutoutCards = shoutouts.map((s, index) => `
+    <div style="background-color: #eff6ff; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: ${index === shoutouts.length - 1 ? '0' : '12px'}; border-radius: 0 2px 2px 0;">
       <p style="margin: 0 0 4px 0; font-size: 12px; color: #1d4ed8; font-weight: 600;">Message from ${s.recipientName}</p>
       <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.4;">"${s.message}"</p>
     </div>
@@ -268,7 +326,7 @@ function renderShoutoutsSection(shoutouts: ShoutoutWithRecipient[]): string {
 
   return `
     <!-- Team Shoutouts -->
-    <div style="padding: 0 20px 16px;">
+    <div style="padding: 12px 20px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Team Shoutouts</h2>
       ${shoutoutCards}
     </div>
@@ -348,6 +406,64 @@ export async function getRecentDigestSummaries(days: number = 7): Promise<Recent
   });
 }
 
+export async function getRecentInspirationContents(days: number = 14): Promise<string[]> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  cutoffDate.setHours(0, 0, 0, 0);
+  
+  const recentDigests = await prisma.digestData.findMany({
+    where: {
+      exportDate: {
+        gte: cutoffDate,
+      },
+    },
+    orderBy: { exportDate: 'desc' },
+  });
+  
+  const contents: string[] = [];
+  for (const digest of recentDigests) {
+    const data = digest.data as DigestDataPayload;
+    const inspiration = data?.aiInspiration;
+    if (inspiration?.content) {
+      contents.push(inspiration.content);
+    }
+  }
+  
+  return Array.from(new Set(contents));
+}
+
+export async function storeInspirationForDate(date: Date, inspiration: AIContent): Promise<void> {
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  
+  const record = await prisma.digestData.findFirst({
+    where: { exportDate: day },
+  });
+  
+  if (!record) {
+    console.warn('[AI Content] No digest data found to store inspiration');
+    return;
+  }
+  
+  const existing = record.data as Record<string, unknown>;
+  const aiInspiration = {
+    type: inspiration.type,
+    content: inspiration.content,
+    attribution: inspiration.attribution,
+    savedAt: new Date().toISOString(),
+  };
+  
+  await prisma.digestData.update({
+    where: { exportDate: day },
+    data: {
+      data: {
+        ...existing,
+        aiInspiration,
+      },
+    },
+  });
+}
+
 /**
  * Build the rich context object for AI with all available data.
  * This gives the AI everything it needs to generate insightful, specific content.
@@ -357,7 +473,8 @@ export async function buildRichAIContext(
   previousData: DigestDataPayload | null,
   // Accept any type that can be converted to number (Prisma Decimal, bigint, number)
   monthlyGoal: { salesRevenue: unknown; salesCount: number } | null,
-  isWeekly: boolean = false
+  isWeekly: boolean = false,
+  recipientFirstName?: string
 ): Promise<RichAIContext> {
   const metrics = currentData?.metrics;
   const today = new Date();
@@ -546,6 +663,7 @@ export async function buildRichAIContext(
     dailyOrders: metrics?.dailySalesCount || 0,
     dailyEstimates: metrics?.dailyEstimatesCreated || 0,
     dailyNewCustomers: metrics?.dailyNewCustomers || 0,
+    recipientFirstName,
     comparison,
     goalProgress,
     biggestOrder,
@@ -558,17 +676,23 @@ export async function buildRichAIContext(
   };
 }
 
-export async function generateDailyDigest(recipientName: string, shoutouts?: ShoutoutWithRecipient[]): Promise<string> {
+export async function generateDailyDigest(
+  recipientName: string,
+  shoutouts?: ShoutoutWithRecipient[],
+  aiContentOverride?: AIContent,
+  recentInspirationContents?: string[],
+  testimonialsOverride?: Testimonial[]
+): Promise<string> {
   // Fetch all data in parallel for efficiency
-  const [digestData, previousData, goals, testimonials, pendingShoutouts] = await Promise.all([
+  const [digestData, previousData, goals, pendingShoutouts] = await Promise.all([
     getLatestDigestData(),
     getPreviousDayDigestData(),
     prisma.goal.findMany(),
-    getRecentTestimonials(2),
     shoutouts !== undefined ? Promise.resolve(shoutouts) : getPendingShoutouts(),
   ]);
-  
-  const aiContent = await generateAIContent();
+  const testimonials = testimonialsOverride ?? await getRecentTestimonials(2);
+  const recentInspirations = recentInspirationContents ?? await getRecentInspirationContents(14);
+  const aiContent = aiContentOverride ?? await generateAIContent(recentInspirations);
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
   const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
@@ -582,10 +706,12 @@ export async function generateDailyDigest(recipientName: string, shoutouts?: Sho
 
   const monthly = monthlyGoal || defaultGoal;
   const annual = annualGoal || defaultGoal;
+  const recipientFirstName = getRecipientFirstName(recipientName);
 
   const metrics: DigestMetrics = digestData?.metrics || {
     dailyRevenue: 0,
     dailySalesCount: 0,
+    dailyInvoicesCreatedAmount: 0,
     dailyEstimatesCreated: 0,
     dailyNewCustomers: 0,
     monthToDateRevenue: 0,
@@ -603,7 +729,8 @@ export async function generateDailyDigest(recipientName: string, shoutouts?: Sho
     digestData,
     previousData,
     monthlyGoal ? { salesRevenue: monthlyGoal.salesRevenue, salesCount: monthlyGoal.salesCount } : null,
-    false // isWeekly
+    false, // isWeekly
+    recipientFirstName
   );
   
   // Generate motivational summary with full context
@@ -613,7 +740,10 @@ export async function generateDailyDigest(recipientName: string, shoutouts?: Sho
   const bdPerformance = digestData?.bdPerformance || [];
   const pmPerformance = digestData?.pmPerformance || [];
   const aiInsights = digestData?.aiInsights || [];
+  const newCustomerEstimates = digestData?.newCustomerEstimates || [];
   const dateStr = digestData?.date || new Date().toISOString().split('T')[0];
+  
+  const newCustomerAlerts = await renderNewCustomerAlerts(newCustomerEstimates);
 
   const html = `
 <!DOCTYPE html>
@@ -635,22 +765,30 @@ export async function generateDailyDigest(recipientName: string, shoutouts?: Sho
     <!-- Motivational Section -->
     ${renderMotivationalSection(motivational)}
 
+    ${newCustomerAlerts}
+
     ${renderShoutoutsSection(pendingShoutouts)}
 
     <!-- Daily Summary -->
     <div style="padding: 16px 20px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Yesterday's Numbers</h2>
-      <table style="width: 100%; border-collapse: collapse;">
+      <table style="width: 100%; border-collapse: collapse; border-spacing: 0;">
         <tr>
-          <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 2px 0 0 0;">
+          <td style="width: 33.33%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 2px 0 0 0;">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatCurrency(metrics.dailyRevenue)}</p>
             <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Revenue</p>
           </td>
-          <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
+          <td style="width: 33.33%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT};">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatNumber(metrics.dailySalesCount)}</p>
-            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">New Jobs</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Invoices Created</p>
+          </td>
+          <td style="width: 33.33%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatCurrency(metrics.dailyInvoicesCreatedAmount ?? 0)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Invoices Created ($)</p>
           </td>
         </tr>
+      </table>
+      <table style="width: 100%; border-collapse: collapse; border-spacing: 0;">
         <tr>
           <td style="width: 50%; padding: 6px; text-align: center; background-color: #f9fafb; border-radius: 0 0 0 2px;">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_GRAY};">${formatNumber(metrics.dailyEstimatesCreated)}</p>
@@ -736,7 +874,7 @@ export async function generateDailyDigest(recipientName: string, shoutouts?: Sho
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Monthly Progress</h2>
       ${renderProgressBar(metrics.monthToDateRevenue, Number(monthly.salesRevenue), 'Revenue')}
-      ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'New Jobs')}
+      ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'Invoices Created')}
       ${renderProgressBar(metrics.monthToDateEstimatesCreated, monthly.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.monthToDateNewCustomers, monthly.newCustomers, 'New Customers')}
     </div>
@@ -745,7 +883,7 @@ export async function generateDailyDigest(recipientName: string, shoutouts?: Sho
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Annual Progress</h2>
       ${renderProgressBar(metrics.yearToDateRevenue, Number(annual.salesRevenue), 'Revenue')}
-      ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'New Jobs')}
+      ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'Invoices Created')}
       ${renderProgressBar(metrics.yearToDateEstimatesCreated, annual.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.yearToDateNewCustomers, annual.newCustomers, 'New Customers')}
     </div>
@@ -777,6 +915,7 @@ const MOCK_DIGEST_DATA: DigestDataPayload = {
   metrics: {
     dailyRevenue: 4250.75,
     dailySalesCount: 8,
+    dailyInvoicesCreatedAmount: 12350.5,
     dailyEstimatesCreated: 12,
     dailyNewCustomers: 2,
     monthToDateRevenue: 42500.0,
@@ -820,25 +959,38 @@ const MOCK_DIGEST_DATA: DigestDataPayload = {
       ],
     },
   ],
+  newCustomerEstimates: [
+    {
+      accountId: 101,
+      accountName: 'Big Blow Productions',
+      salesRep: 'Mike Meyer',
+      estimateValue: 15000,
+      jobDescription: '2x monthly mailer',
+      orderedDate: new Date().toISOString(),
+    },
+  ],
 };
 
 export async function generateDailyDigestWithMockFallback(
   recipientName: string,
-  shoutouts?: ShoutoutWithRecipient[]
+  shoutouts?: ShoutoutWithRecipient[],
+  aiContentOverride?: AIContent,
+  recentInspirationContents?: string[],
+  testimonialsOverride?: Testimonial[]
 ): Promise<{ html: string; isMockData: boolean; shoutoutIds: string[] }> {
   // Fetch all data in parallel
-  const [digestData, previousData, goals, testimonials, pendingShoutouts] = await Promise.all([
+  const [digestData, previousData, goals, pendingShoutouts] = await Promise.all([
     getLatestDigestData(),
     getPreviousDayDigestData(),
     prisma.goal.findMany(),
-    getRecentTestimonials(2),
     shoutouts !== undefined ? Promise.resolve(shoutouts) : getPendingShoutouts(),
   ]);
+  const testimonials = testimonialsOverride ?? await getRecentTestimonials(2);
   
   const isMockData = digestData === null;
   const dataToUse = digestData || MOCK_DIGEST_DATA;
-  
-  const aiContent = await generateAIContent();
+  const recentInspirations = recentInspirationContents ?? await getRecentInspirationContents(14);
+  const aiContent = aiContentOverride ?? await generateAIContent(recentInspirations);
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
   const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
@@ -852,12 +1004,14 @@ export async function generateDailyDigestWithMockFallback(
 
   const monthly = monthlyGoal || defaultGoal;
   const annual = annualGoal || defaultGoal;
+  const recipientFirstName = getRecipientFirstName(recipientName);
 
   const metrics = dataToUse.metrics;
   const highlights = dataToUse.highlights || [];
   const bdPerformance = dataToUse.bdPerformance || [];
   const pmPerformance = dataToUse.pmPerformance || [];
   const aiInsights = dataToUse.aiInsights || [];
+  const newCustomerEstimates = dataToUse.newCustomerEstimates || [];
   const dateStr = dataToUse.date;
 
   // Build rich context for AI - use previous data only if we have real data (not mock)
@@ -865,7 +1019,8 @@ export async function generateDailyDigestWithMockFallback(
     dataToUse,
     isMockData ? null : previousData,
     monthlyGoal ? { salesRevenue: monthlyGoal.salesRevenue, salesCount: monthlyGoal.salesCount } : null,
-    false // isWeekly
+    false, // isWeekly
+    recipientFirstName
   );
   
   // Generate motivational summary with full context
@@ -873,6 +1028,8 @@ export async function generateDailyDigestWithMockFallback(
 
   // Collect shoutout IDs for deletion after send
   const shoutoutIds = pendingShoutouts.map(s => s.id);
+  
+  const newCustomerAlerts = await renderNewCustomerAlerts(newCustomerEstimates);
 
   const html = `
 <!DOCTYPE html>
@@ -894,22 +1051,30 @@ export async function generateDailyDigestWithMockFallback(
     <!-- Motivational Section -->
     ${renderMotivationalSection(motivational)}
 
+    ${newCustomerAlerts}
+
     ${renderShoutoutsSection(pendingShoutouts)}
 
     <!-- Daily Summary -->
     <div style="padding: 16px 20px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Yesterday's Numbers</h2>
-      <table style="width: 100%; border-collapse: collapse;">
+      <table style="width: 100%; border-collapse: collapse; border-spacing: 0;">
         <tr>
-          <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 2px 0 0 0;">
+          <td style="width: 33.33%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 2px 0 0 0;">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatCurrency(metrics.dailyRevenue)}</p>
             <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Revenue</p>
           </td>
-          <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
+          <td style="width: 33.33%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT};">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatNumber(metrics.dailySalesCount)}</p>
-            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">New Jobs</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Invoices Created</p>
+          </td>
+          <td style="width: 33.33%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
+            <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatCurrency(metrics.dailyInvoicesCreatedAmount)}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Invoices Created ($)</p>
           </td>
         </tr>
+      </table>
+      <table style="width: 100%; border-collapse: collapse; border-spacing: 0;">
         <tr>
           <td style="width: 50%; padding: 6px; text-align: center; background-color: #f9fafb; border-radius: 0 0 0 2px;">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_GRAY};">${formatNumber(metrics.dailyEstimatesCreated)}</p>
@@ -995,7 +1160,7 @@ export async function generateDailyDigestWithMockFallback(
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Monthly Progress</h2>
       ${renderProgressBar(metrics.monthToDateRevenue, Number(monthly.salesRevenue), 'Revenue')}
-      ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'New Jobs')}
+      ${renderProgressBar(metrics.monthToDateSalesCount, monthly.salesCount, 'Invoices Created')}
       ${renderProgressBar(metrics.monthToDateEstimatesCreated, monthly.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.monthToDateNewCustomers, monthly.newCustomers, 'New Customers')}
     </div>
@@ -1004,7 +1169,7 @@ export async function generateDailyDigestWithMockFallback(
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Annual Progress</h2>
       ${renderProgressBar(metrics.yearToDateRevenue, Number(annual.salesRevenue), 'Revenue')}
-      ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'New Jobs')}
+      ${renderProgressBar(metrics.yearToDateSalesCount, annual.salesCount, 'Invoices Created')}
       ${renderProgressBar(metrics.yearToDateEstimatesCreated, annual.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(metrics.yearToDateNewCustomers, annual.newCustomers, 'New Customers')}
     </div>
@@ -1037,6 +1202,12 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
     prisma.recipient.findMany({ where: { active: true } }),
     getPendingShoutouts(),
   ]);
+  
+  const recentInspirations = await getRecentInspirationContents(14);
+  const aiContent = await generateAIContent(recentInspirations);
+  await storeInspirationForDate(new Date(), aiContent);
+  
+  const testimonials = await getRecentTestimonials(2);
 
   const result: SendDigestResult = {
     sent: 0,
@@ -1055,7 +1226,7 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
   for (const recipient of recipients) {
     try {
       // Pass shoutouts to avoid re-fetching for each recipient
-      const html = await generateDailyDigest(recipient.name, shoutouts);
+      const html = await generateDailyDigest(recipient.name, shoutouts, aiContent, recentInspirations, testimonials);
       const emailResult = await sendEmail({
         to: recipient.email,
         subject,
@@ -1076,6 +1247,10 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
       result.failed++;
       result.errors.push(`${recipient.email}: ${errorMessage}`);
     }
+  }
+  
+  if (result.sent > 0) {
+    await recordTestimonialDisplay(testimonials);
   }
 
   // Delete shoutouts after sending (they've been included in the digest)

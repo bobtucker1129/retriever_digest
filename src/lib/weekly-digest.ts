@@ -2,10 +2,10 @@
 
 import prisma from '@/lib/db';
 import { GoalType } from '@/generated/prisma/client';
-import { generateAIContent, generateMotivationalSummary, type AIContent, type MotivationalSummary, type DigestMetricsForAI } from '@/lib/ai-content';
+import { generateAIContent, generateMotivationalSummary, generateNewCustomerShoutout, type AIContent, type MotivationalSummary, type DigestMetricsForAI } from '@/lib/ai-content';
 import { sendEmail } from '@/lib/email';
-import type { DigestDataPayload, PerformanceData, ShoutoutWithRecipient } from '@/lib/daily-digest';
-import { getPendingShoutouts, deleteShoutouts } from '@/lib/daily-digest';
+import type { DigestDataPayload, PerformanceData, ShoutoutWithRecipient, NewCustomerEstimate } from '@/lib/daily-digest';
+import { getPendingShoutouts, deleteShoutouts, getRecentInspirationContents, storeInspirationForDate } from '@/lib/daily-digest';
 
 // BooneGraphics Brand Colors
 const BRAND_RED = '#B91C1C';
@@ -43,6 +43,7 @@ export interface WeeklyDigestData {
   monthToDate: WeeklyMetrics;
   yearToDate: WeeklyMetrics;
   topHighlights: string[];
+  newCustomerEstimates: NewCustomerEstimate[];
 }
 
 function getWeekBoundaries(referenceDate: Date): { start: Date; end: Date } {
@@ -141,6 +142,26 @@ function aggregateHighlights(digestDataRecords: { data: unknown }[]): string[] {
   return allHighlights.slice(0, 10);
 }
 
+function aggregateNewCustomerEstimates(digestDataRecords: { data: unknown }[]): NewCustomerEstimate[] {
+  const estimateMap = new Map<number, NewCustomerEstimate>();
+  
+  for (const record of digestDataRecords) {
+    const data = record.data as DigestDataPayload;
+    const estimates = data?.newCustomerEstimates;
+    if (!estimates || !Array.isArray(estimates)) continue;
+    
+    for (const estimate of estimates) {
+      if (!estimate.accountId) continue;
+      const existing = estimateMap.get(estimate.accountId);
+      if (!existing || (estimate.estimateValue || 0) > (existing.estimateValue || 0)) {
+        estimateMap.set(estimate.accountId, estimate);
+      }
+    }
+  }
+  
+  return Array.from(estimateMap.values()).sort((a, b) => (b.estimateValue || 0) - (a.estimateValue || 0));
+}
+
 export async function getWeeklyDigestData(): Promise<WeeklyDigestData | null> {
   const today = new Date();
   
@@ -184,6 +205,7 @@ export async function getWeeklyDigestData(): Promise<WeeklyDigestData | null> {
   const pmWeeklyPerformance = aggregatePerformanceData(thisWeekRecords, 'pmPerformance');
   const bdWeeklyPerformance = aggregatePerformanceData(thisWeekRecords, 'bdPerformance');
   const topHighlights = aggregateHighlights(thisWeekRecords);
+  const newCustomerEstimates = aggregateNewCustomerEstimates(thisWeekRecords);
 
   const latestRecord = thisWeekRecords.length > 0 
     ? thisWeekRecords[thisWeekRecords.length - 1] 
@@ -223,6 +245,7 @@ export async function getWeeklyDigestData(): Promise<WeeklyDigestData | null> {
     monthToDate,
     yearToDate,
     topHighlights,
+    newCustomerEstimates,
   };
 }
 
@@ -245,6 +268,12 @@ function formatWeekRange(start: Date, end: Date): string {
   const endStr = end.toLocaleDateString('en-US', options);
   const year = end.getFullYear();
   return `${startStr} - ${endStr}, ${year}`;
+}
+
+function getRecipientFirstName(name: string): string | undefined {
+  const trimmed = name?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.split(/\s+/)[0];
 }
 
 function calculateProgress(current: number, goal: number): number {
@@ -310,11 +339,45 @@ function renderAIContent(aiContent: AIContent): string {
   }
 }
 
+async function renderNewCustomerAlerts(estimates: NewCustomerEstimate[]): Promise<string> {
+  if (!estimates || estimates.length === 0) return '';
+  
+  const limited = estimates.slice(0, 3);
+  
+  const alertCards = await Promise.all(limited.map(async (estimate, index) => {
+    const accountName = estimate.accountName || 'Unknown';
+    const salesRep = estimate.salesRep || 'the team';
+    const estimateValue = formatCurrency(estimate.estimateValue || 0);
+    const jobDescription = estimate.jobDescription || '';
+    
+    const message = await generateNewCustomerShoutout({
+      accountName,
+      salesRep,
+      estimateValue,
+      jobDescription,
+    });
+    
+    return `
+      <div style="background-color: #fff7ed; border-left: 3px solid #f97316; padding: 12px; margin-bottom: ${index === limited.length - 1 ? '0' : '12px'}; border-radius: 0 2px 2px 0;">
+        <p style="margin: 0; font-size: 12px; color: #9a3412; font-weight: 700; letter-spacing: 0.4px;">NEW CUSTOMER ALERT</p>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #7c2d12; line-height: 1.4;">${message}</p>
+      </div>
+    `;
+  }));
+  
+  return `
+    <div style="padding: 12px 20px;">
+      <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">New Customer Shoutouts</h2>
+      ${alertCards.join('')}
+    </div>
+  `;
+}
+
 function renderShoutoutsSection(shoutouts: ShoutoutWithRecipient[]): string {
   if (!shoutouts || shoutouts.length === 0) return '';
   
-  const shoutoutCards = shoutouts.map(s => `
-    <div style="background-color: #eff6ff; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: 12px; border-radius: 0 2px 2px 0;">
+  const shoutoutCards = shoutouts.map((s, index) => `
+    <div style="background-color: #eff6ff; border-left: 3px solid #3b82f6; padding: 12px; margin-bottom: ${index === shoutouts.length - 1 ? '0' : '12px'}; border-radius: 0 2px 2px 0;">
       <p style="margin: 0 0 4px 0; font-size: 12px; color: #1d4ed8; font-weight: 600;">Message from ${s.recipientName}</p>
       <p style="margin: 0; font-size: 13px; color: #1e40af; line-height: 1.4;">"${s.message}"</p>
     </div>
@@ -322,7 +385,7 @@ function renderShoutoutsSection(shoutouts: ShoutoutWithRecipient[]): string {
 
   return `
     <!-- Team Shoutouts -->
-    <div style="padding: 0 20px 16px;">
+    <div style="padding: 12px 20px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Team Shoutouts</h2>
       ${shoutoutCards}
     </div>
@@ -336,6 +399,7 @@ function generateWeeklyDigestHTML(
   annualGoal: { salesRevenue: number; salesCount: number; estimatesCreated: number; newCustomers: number },
   aiContent: AIContent,
   motivational: MotivationalSummary,
+  newCustomerAlerts: string,
   shoutouts: ShoutoutWithRecipient[] = []
 ): string {
   const weekRangeStr = formatWeekRange(data.weekStartDate, data.weekEndDate);
@@ -360,6 +424,8 @@ function generateWeeklyDigestHTML(
     <!-- Motivational Section -->
     ${renderMotivationalSection(motivational)}
 
+    ${newCustomerAlerts}
+
     ${renderShoutoutsSection(shoutouts)}
 
     <!-- This Week's Wins -->
@@ -373,7 +439,7 @@ function generateWeeklyDigestHTML(
           </td>
           <td style="width: 50%; padding: 6px; text-align: center; background-color: ${BRAND_RED_LIGHT}; border-radius: 0 2px 0 0;">
             <p style="margin: 0; font-size: 20px; font-weight: 700; color: ${BRAND_RED_DARK};">${formatNumber(data.thisWeek.salesCount)}</p>
-            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">New Jobs</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #6b7280;">Invoices Created</p>
           </td>
         </tr>
         <tr>
@@ -417,7 +483,7 @@ function generateWeeklyDigestHTML(
             <td style="padding: 6px; text-align: right; font-size: 13px;">${renderChangeIndicator(data.weekOverWeekChange.revenueChange)}</td>
           </tr>
           <tr style="border-bottom: 1px solid #e5e7eb;">
-            <td style="padding: 6px; font-size: 13px; color: #374151;">New Jobs</td>
+            <td style="padding: 6px; font-size: 13px; color: #374151;">Invoices Created</td>
             <td style="padding: 6px; text-align: right; font-size: 13px; color: #6b7280;">${formatNumber(data.lastWeek.salesCount)}</td>
             <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151; font-weight: 600;">${formatNumber(data.thisWeek.salesCount)}</td>
             <td style="padding: 6px; text-align: right; font-size: 13px;">${renderChangeIndicator(data.weekOverWeekChange.salesCountChange)}</td>
@@ -492,7 +558,7 @@ function generateWeeklyDigestHTML(
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Monthly Progress</h2>
       ${renderProgressBar(data.monthToDate.revenue, monthlyGoal.salesRevenue, 'Revenue')}
-      ${renderProgressBar(data.monthToDate.salesCount, monthlyGoal.salesCount, 'New Jobs')}
+      ${renderProgressBar(data.monthToDate.salesCount, monthlyGoal.salesCount, 'Invoices Created')}
       ${renderProgressBar(data.monthToDate.estimatesCreated, monthlyGoal.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(data.monthToDate.newCustomers, monthlyGoal.newCustomers, 'New Customers')}
     </div>
@@ -501,7 +567,7 @@ function generateWeeklyDigestHTML(
     <div style="padding: 0 20px 16px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Annual Progress</h2>
       ${renderProgressBar(data.yearToDate.revenue, annualGoal.salesRevenue, 'Revenue')}
-      ${renderProgressBar(data.yearToDate.salesCount, annualGoal.salesCount, 'New Jobs')}
+      ${renderProgressBar(data.yearToDate.salesCount, annualGoal.salesCount, 'Invoices Created')}
       ${renderProgressBar(data.yearToDate.estimatesCreated, annualGoal.estimatesCreated, 'Estimates Created')}
       ${renderProgressBar(data.yearToDate.newCustomers, annualGoal.newCustomers, 'New Customers')}
     </div>
@@ -524,13 +590,21 @@ function generateWeeklyDigestHTML(
   `.trim();
 }
 
-export async function generateWeeklyDigest(recipientName: string, shoutouts?: ShoutoutWithRecipient[]): Promise<string> {
-  const [weeklyData, goals, aiContent, pendingShoutouts] = await Promise.all([
+export async function generateWeeklyDigest(
+  recipientName: string,
+  shoutouts?: ShoutoutWithRecipient[],
+  aiContentOverride?: AIContent,
+  recentInspirationContents?: string[]
+): Promise<string> {
+  const [weeklyData, goals, pendingShoutouts] = await Promise.all([
     getWeeklyDigestData(),
     prisma.goal.findMany(),
-    generateAIContent(),
     shoutouts !== undefined ? Promise.resolve(shoutouts) : getPendingShoutouts(),
   ]);
+  
+  const recentInspirations = recentInspirationContents ?? await getRecentInspirationContents(14);
+  const aiContent = aiContentOverride ?? await generateAIContent(recentInspirations);
+  const recipientFirstName = getRecipientFirstName(recipientName);
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
   const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
@@ -573,18 +647,21 @@ export async function generateWeeklyDigest(recipientName: string, shoutouts?: Sh
       monthToDate: { revenue: 0, salesCount: 0, estimatesCreated: 0, newCustomers: 0 },
       yearToDate: { revenue: 0, salesCount: 0, estimatesCreated: 0, newCustomers: 0 },
       topHighlights: [],
+      newCustomerEstimates: [],
     };
     const metricsForAI: DigestMetricsForAI = {
       revenue: 0,
       ordersCompleted: 0,
       estimatesCreated: 0,
       newCustomers: 0,
+      recipientFirstName,
       isWeekly: true,
       weekOverWeekRevenueChange: 0,
       weekOverWeekOrdersChange: 0,
     };
     const motivational = await generateMotivationalSummary(metricsForAI);
-    return generateWeeklyDigestHTML(recipientName, emptyData, monthly, annual, aiContent, motivational, pendingShoutouts);
+    const newCustomerAlerts = await renderNewCustomerAlerts(emptyData.newCustomerEstimates);
+    return generateWeeklyDigestHTML(recipientName, emptyData, monthly, annual, aiContent, motivational, newCustomerAlerts, pendingShoutouts);
   }
 
   const metricsForAI: DigestMetricsForAI = {
@@ -592,13 +669,15 @@ export async function generateWeeklyDigest(recipientName: string, shoutouts?: Sh
     ordersCompleted: weeklyData.thisWeek.salesCount,
     estimatesCreated: weeklyData.thisWeek.estimatesCreated,
     newCustomers: weeklyData.thisWeek.newCustomers,
+    recipientFirstName,
     isWeekly: true,
     weekOverWeekRevenueChange: weeklyData.weekOverWeekChange.revenueChange,
     weekOverWeekOrdersChange: weeklyData.weekOverWeekChange.salesCountChange,
   };
   const motivational = await generateMotivationalSummary(metricsForAI);
 
-  return generateWeeklyDigestHTML(recipientName, weeklyData, monthly, annual, aiContent, motivational, pendingShoutouts);
+  const newCustomerAlerts = await renderNewCustomerAlerts(weeklyData.newCustomerEstimates || []);
+  return generateWeeklyDigestHTML(recipientName, weeklyData, monthly, annual, aiContent, motivational, newCustomerAlerts, pendingShoutouts);
 }
 
 export interface SendWeeklyDigestResult {
@@ -613,6 +692,10 @@ export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
     prisma.recipient.findMany({ where: { active: true } }),
     getPendingShoutouts(),
   ]);
+  
+  const recentInspirations = await getRecentInspirationContents(14);
+  const aiContent = await generateAIContent(recentInspirations);
+  await storeInspirationForDate(new Date(), aiContent);
 
   const result: SendWeeklyDigestResult = {
     sent: 0,
@@ -631,7 +714,7 @@ export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
   for (const recipient of recipients) {
     try {
       // Pass shoutouts to avoid re-fetching for each recipient
-      const html = await generateWeeklyDigest(recipient.name, shoutouts);
+      const html = await generateWeeklyDigest(recipient.name, shoutouts, aiContent, recentInspirations);
       const emailResult = await sendEmail({
         to: recipient.email,
         subject,
@@ -686,18 +769,32 @@ const MOCK_WEEKLY_DATA: WeeklyDigestData = {
     'Completed order for <strong>XYZ Industries</strong> - Trade Show Banners - $8,750.00',
     'New estimate for <strong>Metro Hospital</strong> - Surgical Kit Labels - $5,200.00',
   ],
+  newCustomerEstimates: [
+    {
+      accountId: 201,
+      accountName: 'Lakeside Health',
+      salesRep: 'Paige Chamberlain',
+      estimateValue: 12500,
+      jobDescription: 'Quarterly patient brochure',
+      orderedDate: new Date().toISOString(),
+    },
+  ],
 };
 
 export async function generateWeeklyDigestWithMockFallback(
   recipientName: string,
-  shoutouts?: ShoutoutWithRecipient[]
+  shoutouts?: ShoutoutWithRecipient[],
+  aiContentOverride?: AIContent,
+  recentInspirationContents?: string[]
 ): Promise<{ html: string; isMockData: boolean; shoutoutIds: string[] }> {
-  const [weeklyData, goals, aiContent, pendingShoutouts] = await Promise.all([
+  const [weeklyData, goals, pendingShoutouts] = await Promise.all([
     getWeeklyDigestData(),
     prisma.goal.findMany(),
-    generateAIContent(),
     shoutouts !== undefined ? Promise.resolve(shoutouts) : getPendingShoutouts(),
   ]);
+  
+  const recentInspirations = recentInspirationContents ?? await getRecentInspirationContents(14);
+  const aiContent = aiContentOverride ?? await generateAIContent(recentInspirations);
   
   const hasNoData = !weeklyData || (weeklyData.thisWeek.revenue === 0 && weeklyData.lastWeek.revenue === 0);
   const isMockData = hasNoData;
@@ -745,7 +842,8 @@ export async function generateWeeklyDigestWithMockFallback(
   // Collect shoutout IDs for deletion after send
   const shoutoutIds = pendingShoutouts.map(s => s.id);
 
-  const html = generateWeeklyDigestHTML(recipientName, dataToUse, monthly, annual, aiContent, motivational, pendingShoutouts);
+  const newCustomerAlerts = await renderNewCustomerAlerts(dataToUse.newCustomerEstimates || []);
+  const html = generateWeeklyDigestHTML(recipientName, dataToUse, monthly, annual, aiContent, motivational, newCustomerAlerts, pendingShoutouts);
 
   return { html, isMockData, shoutoutIds };
 }

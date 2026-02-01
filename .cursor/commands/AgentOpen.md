@@ -1,4 +1,4 @@
-# AgentOpen Rule
+# AgentOpen Command
 
 When the user types `/AgentOpen` or starts a new agent session asking to continue the project, perform the following onboarding steps:
 

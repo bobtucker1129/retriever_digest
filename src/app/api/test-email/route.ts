@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateDailyDigestWithMockFallback } from '@/lib/daily-digest';
+import { generateDailyDigestWithMockFallback, getRecentInspirationContents } from '@/lib/daily-digest';
 import { generateWeeklyDigestWithMockFallback } from '@/lib/weekly-digest';
 import { sendEmail } from '@/lib/email';
 
@@ -28,7 +28,13 @@ export async function POST(request: NextRequest) {
     let subject: string;
 
     if (type === 'weekly') {
-      const result = await generateWeeklyDigestWithMockFallback('Test User');
+      const recentInspirations = await getRecentInspirationContents(14);
+      const result = await generateWeeklyDigestWithMockFallback(
+        'Test User',
+        undefined,
+        undefined,
+        recentInspirations
+      );
       html = result.html;
       const weekStart = new Date(today);
       weekStart.setDate(today.getDate() - today.getDay());
@@ -38,7 +44,13 @@ export async function POST(request: NextRequest) {
       });
       subject = `🐕 Retriever Weekly Digest - Week of ${weekStartStr} (TEST)`;
     } else {
-      const result = await generateDailyDigestWithMockFallback('Test User');
+      const recentInspirations = await getRecentInspirationContents(14);
+      const result = await generateDailyDigestWithMockFallback(
+        'Test User',
+        undefined,
+        undefined,
+        recentInspirations
+      );
       html = result.html;
       const dateStr = today.toLocaleDateString('en-US', {
         month: 'short',

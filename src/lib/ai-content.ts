@@ -16,9 +16,17 @@ export interface DigestMetricsForAI {
   ordersCompleted: number;
   estimatesCreated: number;
   newCustomers: number;
+  recipientFirstName?: string;
   isWeekly?: boolean;
   weekOverWeekRevenueChange?: number;
   weekOverWeekOrdersChange?: number;
+}
+
+export interface NewCustomerShoutoutInput {
+  accountName: string;
+  salesRep?: string;
+  estimateValue: string;
+  jobDescription?: string;
 }
 
 // ============================================================================
@@ -85,6 +93,7 @@ export interface RichAIContext {
   dailyOrders: number;
   dailyEstimates: number;
   dailyNewCustomers: number;
+  recipientFirstName?: string;
   
   // Comparison to previous day
   comparison?: DayComparison;
@@ -163,31 +172,53 @@ const FALLBACK_CONTENT: AIContent[] = [
     content: "Why don't sales reps ever get lost? They always follow up.",
   },
   {
+    type: 'thought',
+    content: 'Great work is built one careful step at a time. Stay steady, stay proud, keep the bar high.',
+  },
+  {
     type: 'quote',
     content: 'You miss 100% of the shots you don\'t take.',
     attribution: 'Wayne Gretzky',
   },
+  {
+    type: 'thought',
+    content: 'Ink on paper, promises in motion — each order is trust earned and delivered.',
+  },
+  {
+    type: 'thought',
+    content: 'Small wins stack up. Today’s follow-up becomes tomorrow’s customer.',
+  },
+  {
+    type: 'thought',
+    content: 'In every proof, a promise. In every delivery, a relationship.',
+  },
 ];
 
-export async function generateAIContent(): Promise<AIContent> {
+export async function generateAIContent(recentContents: string[] = []): Promise<AIContent> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   
   console.log('[AI Content] generateAIContent called, API key exists:', !!apiKey);
   
   if (!apiKey) {
     console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback content');
-    return getRandomFallback();
+    return getRandomFallback(recentContents);
   }
 
   try {
     const anthropic = new Anthropic({ apiKey });
-    
-    const contentType = Math.random() > 0.5 ? 'quote' : 'joke';
+    const roll = Math.random();
+    const contentType = roll < 0.4 ? 'quote' : roll < 0.7 ? 'joke' : 'thought';
     console.log('[AI Content] Generating content type:', contentType);
     
     const prompt = contentType === 'quote'
       ? `Generate a short motivational quote (1-2 sentences) about sales, business success, or the printing industry. Keep it professional and appropriate for a workplace email. Return ONLY the quote text and attribution in this exact format: "QUOTE_TEXT" - ATTRIBUTION`
-      : `Generate a short, clean joke (1-2 sentences) about sales, printing, or business. Keep it professional and appropriate for a workplace email. Return ONLY the joke text, no setup labels.`;
+      : contentType === 'joke'
+        ? `Generate a short, clean joke (1-2 sentences) about sales, printing, or business. Keep it professional and appropriate for a workplace email. Return ONLY the joke text, no setup labels.`
+        : `Generate a short, thoughtful reflection or 2-3 line mini-poem about teamwork, craftsmanship, or customer care. Keep it professional and appropriate for a workplace email. Return ONLY the text, no labels or quotes.`;
+    
+    const recentSnippet = recentContents.length > 0
+      ? `\nAvoid repeating these recent items:\n- ${recentContents.slice(0, 10).join('\n- ')}`
+      : '';
 
     console.log('[AI Content] Calling Anthropic API...');
     
@@ -198,7 +229,7 @@ export async function generateAIContent(): Promise<AIContent> {
       messages: [
         {
           role: 'user',
-          content: prompt,
+          content: `${prompt}${recentSnippet}`,
         },
       ],
       system: 'You generate short, workplace-appropriate motivational content for a sales team email digest. Keep responses brief and professional.',
@@ -211,47 +242,134 @@ export async function generateAIContent(): Promise<AIContent> {
     
     if (!text) {
       console.log('[AI Content] Empty response from API, using fallback');
-      return getRandomFallback();
+      return getRandomFallback(recentContents);
     }
 
     if (contentType === 'quote') {
       const match = text.match(/^"?([^"]+)"?\s*[-–—]\s*(.+)$/);
       if (match) {
         console.log('[AI Content] Successfully parsed quote with attribution');
+        const content = match[1].replace(/^"|"$/g, '').trim();
+        if (isRecentContent(content, recentContents)) {
+          console.log('[AI Content] Quote repeated, using fallback');
+          return getRandomFallback(recentContents);
+        }
         return {
           type: 'quote',
-          content: match[1].replace(/^"|"$/g, '').trim(),
+          content,
           attribution: match[2].trim(),
         };
       }
       console.log('[AI Content] Quote parsed without attribution pattern, using Unknown');
+      const cleaned = text.replace(/^"|"$/g, '').trim();
+      if (isRecentContent(cleaned, recentContents)) {
+        console.log('[AI Content] Quote repeated, using fallback');
+        return getRandomFallback(recentContents);
+      }
       return {
         type: 'quote',
-        content: text.replace(/^"|"$/g, ''),
+        content: cleaned,
         attribution: 'Unknown',
       };
     } else {
-      console.log('[AI Content] Successfully generated joke');
+      console.log('[AI Content] Successfully generated non-quote content');
+      if (isRecentContent(text, recentContents)) {
+        console.log('[AI Content] Content repeated, using fallback');
+        return getRandomFallback(recentContents);
+      }
       return {
-        type: 'joke',
+        type: contentType,
         content: text,
       };
     }
   } catch (error) {
     console.error('[AI Content] Failed to generate AI content:', error);
     console.error('[AI Content] Error details:', error instanceof Error ? error.message : String(error));
-    return getRandomFallback();
+    return getRandomFallback(recentContents);
   }
 }
 
-function getRandomFallback(): AIContent {
-  const index = Math.floor(Math.random() * FALLBACK_CONTENT.length);
-  return FALLBACK_CONTENT[index];
+export async function generateNewCustomerShoutout(input: NewCustomerShoutoutInput): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const salesRep = input.salesRep && input.salesRep.trim() ? input.salesRep.trim() : 'the team';
+  const jobDescription = input.jobDescription && input.jobDescription.trim()
+    ? input.jobDescription.trim()
+    : 'their first estimate';
+  
+  const fallback = `NEW CUSTOMER ALERT - ${salesRep} landed a first estimate from ${input.accountName} for ${jobDescription} at ${input.estimateValue}. Let’s give them extra Boone love as we bring this new client on board.`;
+  
+  if (!apiKey) {
+    console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback new customer shoutout');
+    return fallback;
+  }
+  
+  try {
+    const anthropic = new Anthropic({ apiKey });
+    const prompt = `
+Write 1-2 sentences for a sales-team email shoutout about a new customer estimate.
+Requirements:
+- Mention the account name: ${input.accountName}
+- Mention the sales rep: ${salesRep}
+- Mention the estimate value: ${input.estimateValue}
+- Mention the job/estimate description: ${jobDescription}
+Tone: professional, upbeat, action-oriented. Encourage the team to support landing the new client.
+Return ONLY the message text, no quotes or labels.
+    `.trim();
+    
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 180,
+      temperature: 0.8,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      system: 'You write concise, professional shoutouts for a sales team email digest.',
+    });
+    
+    const textBlock = response.content.find(block => block.type === 'text');
+    const text = textBlock && textBlock.type === 'text' ? textBlock.text.trim() : null;
+    
+    if (!text) {
+      console.log('[AI Content] Empty response for new customer shoutout, using fallback');
+      return fallback;
+    }
+    
+    return text.replace(/\s+/g, ' ').trim();
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[AI Content] Error generating new customer shoutout:', errorMessage);
+    return fallback;
+  }
+}
+
+function getRandomFallback(recentContents: string[] = []): AIContent {
+  const pool = recentContents.length > 0
+    ? FALLBACK_CONTENT.filter(item => !isRecentContent(item.content, recentContents))
+    : FALLBACK_CONTENT;
+  const options = pool.length > 0 ? pool : FALLBACK_CONTENT;
+  const index = Math.floor(Math.random() * options.length);
+  return options[index];
+}
+
+function isRecentContent(content: string, recentContents: string[]): boolean {
+  if (!content) return false;
+  const normalized = content.trim().toLowerCase();
+  return recentContents.some(item => item.trim().toLowerCase() === normalized);
 }
 
 function getRandomMotivationalFallback(): MotivationalSummary {
   const index = Math.floor(Math.random() * FALLBACK_MOTIVATIONAL.length);
   return FALLBACK_MOTIVATIONAL[index];
+}
+
+function applyRecipientGreeting(message: string, recipientFirstName?: string): string {
+  if (!recipientFirstName) return message;
+  const trimmed = message.trim();
+  if (/^good morning\b/i.test(trimmed)) return message;
+  return `Good morning ${recipientFirstName}. ${trimmed}`;
 }
 
 function formatCurrencyForAI(amount: number): string {
@@ -270,7 +388,11 @@ export async function generateMotivationalSummary(metrics: DigestMetricsForAI): 
   
   if (!apiKey) {
     console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback motivational content');
-    return getRandomMotivationalFallback();
+    const fallback = getRandomMotivationalFallback();
+    return {
+      headline: fallback.headline,
+      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName),
+    };
   }
 
   try {
@@ -287,6 +409,10 @@ export async function generateMotivationalSummary(metrics: DigestMetricsForAI): 
       const ordersDirection = (metrics.weekOverWeekOrdersChange ?? 0) >= 0 ? 'up' : 'down';
       contextInfo += ` Week-over-week: revenue ${revenueDirection} ${Math.abs(metrics.weekOverWeekRevenueChange)}%, orders ${ordersDirection} ${Math.abs(metrics.weekOverWeekOrdersChange ?? 0)}%.`;
     }
+    
+    const greetingInstruction = metrics.recipientFirstName
+      ? `Start the message with: "Good morning ${metrics.recipientFirstName}."`
+      : '';
 
     const prompt = `You are writing a brief motivational summary for BooneGraphics, a professional printing company serving the medical industry. This will appear at the top of a ${periodType}ly digest email to the team.
 
@@ -297,6 +423,7 @@ Write a 2-3 sentence motivational team summary that:
 2. Highlights something positive from the numbers
 3. Maintains a professional, encouraging tone appropriate for a B2B medical printing company
 4. Focuses on team success and shared wins
+${greetingInstruction ? `5. ${greetingInstruction}` : ''}
 
 IMPORTANT: Create a unique, creative headline. Do NOT start with "Strong" - use varied words like "Excellent", "Outstanding", "Crushing It", "On Fire", "Momentum Building", "Goals in Sight", "Another Win", "Delivering Excellence", "Making It Happen", etc.
 
@@ -323,7 +450,11 @@ Return your response in this exact JSON format:
     
     if (!text) {
       console.log('[AI Content] Empty response, using fallback');
-      return getRandomMotivationalFallback();
+      const fallback = getRandomMotivationalFallback();
+      return {
+        headline: fallback.headline,
+        message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName),
+      };
     }
 
     try {
@@ -348,7 +479,7 @@ Return your response in this exact JSON format:
         console.log('[AI Content] Successfully generated:', parsed.headline);
         return {
           headline: parsed.headline,
-          message: parsed.message,
+          message: applyRecipientGreeting(parsed.message, metrics.recipientFirstName),
         };
       }
     } catch (parseError) {
@@ -356,10 +487,18 @@ Return your response in this exact JSON format:
     }
 
     console.log('[AI Content] Parse failed, using fallback');
-    return getRandomMotivationalFallback();
+    const fallback = getRandomMotivationalFallback();
+    return {
+      headline: fallback.headline,
+      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName),
+    };
   } catch (error) {
     console.error('[AI Content] Failed to generate motivational summary:', error);
-    return getRandomMotivationalFallback();
+    const fallback = getRandomMotivationalFallback();
+    return {
+      headline: fallback.headline,
+      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName),
+    };
   }
 }
 
@@ -507,7 +646,11 @@ export async function generateRichMotivationalSummary(ctx: RichAIContext): Promi
   
   if (!apiKey) {
     console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback');
-    return getRandomMotivationalFallback();
+    const fallback = getRandomMotivationalFallback();
+    return {
+      headline: fallback.headline,
+      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName),
+    };
   }
 
   try {
@@ -521,6 +664,9 @@ export async function generateRichMotivationalSummary(ctx: RichAIContext): Promi
     const recentDigestsSection = buildRecentDigestsSection(ctx);
     
     const periodType = ctx.isWeekly ? 'weekly' : 'daily';
+    const greetingInstruction = ctx.recipientFirstName
+      ? `Start the message with: "Good morning ${ctx.recipientFirstName}."`
+      : '';
     
     const prompt = `You are writing a brief motivational summary for BooneGraphics, a professional printing company serving the medical industry. This appears at the TOP of a ${periodType} sales digest email.
 
@@ -543,6 +689,7 @@ REQUIREMENTS:
 6. Keep tone professional but energizing - this is for a B2B medical printing company
 7. NEVER use generic phrases like "great job team" or "keep up the good work" without specific context
 8. AVOID repeating recent headlines or over-mentioning accounts listed in the "AVOID REPETITION" section
+${greetingInstruction ? `9. ${greetingInstruction}` : ''}
 
 GOOD EXAMPLE:
 "Memorial Hospital just placed their biggest order in 6 months - $3,500 for surgical kit labels. With 10 days left and $85K to go, yesterday's $16K keeps us right on pace. Quick opportunity: Smith Medical's annual report order is coming up - they placed a $4K order same time last year."
@@ -598,16 +745,24 @@ Return your response in this exact JSON format:
         console.log('[AI Content] Rich summary generated:', parsed.headline);
         return {
           headline: parsed.headline,
-          message: parsed.message,
+          message: applyRecipientGreeting(parsed.message, ctx.recipientFirstName),
         };
       }
     } catch (parseError) {
       console.error('[AI Content] Failed to parse rich summary JSON. Raw text:', text.substring(0, 300));
     }
 
-    return getRandomMotivationalFallback();
+    const fallback = getRandomMotivationalFallback();
+    return {
+      headline: fallback.headline,
+      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName),
+    };
   } catch (error) {
     console.error('[AI Content] Failed to generate rich motivational summary:', error);
-    return getRandomMotivationalFallback();
+    const fallback = getRandomMotivationalFallback();
+    return {
+      headline: fallback.headline,
+      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName),
+    };
   }
 }

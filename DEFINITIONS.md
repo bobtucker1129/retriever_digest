@@ -1,6 +1,6 @@
 # Retriever Daily Digest - Metric Definitions
 
-> **Last Updated:** 2026-01-28
+> **Last Updated:** 2026-02-01
 
 This document defines all metrics and terminology used in the Retriever Daily Digest emails, organized by section.
 
@@ -13,9 +13,10 @@ The main metrics displayed at the top of the daily digest.
 | Term | Definition | Data Source |
 |------|------------|-------------|
 | **Revenue** | Total sales from jobs picked up/closed out that day. Excludes postage and shipping. | `salesbase.totalsales` where `pickupdate` = target date |
-| **New Jobs** | Count of new invoices/jobs entered into the system that day (regardless of pickup status). | `invoicebase` where `ordereddate` = target date |
+| **Invoices Created** | Count of new invoices/jobs entered into the system that day (regardless of pickup status). | `invoicebase` where `ordereddate` = target date |
+| **Invoices Created ($)** | Total dollar value of invoices created that day (sum of subtotals). | `invoicebase.subtotal` where `ordereddate` = target date |
 | **Estimates Created** | Count of new estimates created that day. | `estimate` joined to `invoicebase` where `ordereddate` = target date |
-| **New Customers** | Currently shows 0 for daily. For MTD/YTD: count of distinct accounts whose first-ever invoice pickup occurred during the period. Does not include estimate-only accounts. | Subquery checking no prior `pickupdate` for account |
+| **New Customers** | Currently shows 0 for daily. For MTD/YTD: count of distinct accounts whose first-ever estimate was created during the period. | Subquery checking no prior `ordereddate` for account (estimates) |
 
 ### Key Date Fields
 
@@ -96,9 +97,9 @@ Progress bars show percentage toward configured goals (set in Admin Portal > Goa
 
 **Metrics tracked:**
 - Revenue (same definition as daily, aggregated)
-- New Jobs (same definition as daily, aggregated)
+- Invoices Created (same definition as daily, aggregated)
 - Estimates Created (same definition as daily, aggregated)
-- New Customers (count of accounts with first-ever pickup during the period)
+- New Customers (count of accounts with first-ever estimate created during the period)
 
 ---
 

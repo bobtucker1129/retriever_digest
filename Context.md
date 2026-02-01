@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-01-28  
+> **Last Updated:** 2026-02-01  
 > **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** Team Shoutouts feature added, public submission form deployed
+> **Status:** Added Invoices Created ($) metric, 3-over-2 Yesterday's Numbers layout, and personalization work in progress (preview build error)
 
 ---
 
@@ -48,6 +48,7 @@
 - Configured all environment variables
 - AI content generation working
 - Cron jobs still need setup
+- Testimonial de-dup tracking added (requires migration deploy)
 
 ### Phase 3: PrintSmith Server Setup ⏳ NEXT
 - Install Python on PrintSmith Windows server
@@ -244,6 +245,29 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 ---
 
 ## Session History
+### 2026-02-01 (Session 14): Invoices Created ($) + Personalization (In Progress)
+- **New Metric:** Added “Invoices Created ($)” as sum of invoice subtotals for ordereddate
+  - Export script now computes `dailyInvoicesCreatedAmount`
+  - Yesterday’s Numbers updated to 3-over-2 grid
+- **Docs:** Updated DEFINITIONS.md for new metric
+- **Preview/Test:** LoyaltyLoop fallback limited to 2 testimonials; preview fixed to avoid NaN
+- **Personalization:** Started first-name greeting in AI summaries for daily/weekly
+  - Current issue: local preview build failing due to duplicate `recipientFirstName` definition in `daily-digest.ts`
+- **Export Run:** Posted 2026-01-30 data; new jobs value logged at $9,176.81
+
+### 2026-02-01 (Session 13): Digest Enhancements & De-dup Tracking
+- **New Customer Shoutouts:** Added daily/weekly “NEW CUSTOMER ALERT” from first-ever estimates
+  - Export now includes `newCustomerEstimates`
+  - MTD/YTD new customers now based on first-ever estimate created
+- **Labels Updated:** “New Jobs” renamed to “Invoices Created” in digest and goals
+- **Team Shoutouts Spacing:** Adjusted top/bottom spacing for consistency
+- **AI Inspiration Mix:** Added quotes, jokes, and thoughtful reflections with repeat avoidance
+  - Inspiration stored in DigestData cache for de-dup across days
+  - Preview/test uses cache without writing
+- **Testimonials De-dup:** Added `TestimonialDisplay` model and selection logic
+  - Shows new unshown first, then older unshown, then least-shown
+  - Migration created: `20260201023017_add_testimonial_display`
+- **Commands:** Moved AgentOpen/AgentClose to Cursor commands
 
 ### 2026-01-28 (Session 12): Team Shoutouts Feature
 - **Team Shoutouts Feature:** Allow recipients to submit messages for inclusion in digests
@@ -481,10 +505,12 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 5. ✅ **Update Render EMAIL_FROM** - Changed to `Retriever Digest <digest@boonegraphics.net>` (no quotes)
 6. ✅ **Test production email** - Tested daily and weekly from admin portal
 7. **Fix SPF record** - Add `include:amazonses.com` to main domain SPF in Cloudflare (deliverability fix)
-8. **Set up Render cron jobs** for automated daily/weekly digests
-9. **Phase 3**: Install export script on PrintSmith Windows server
-10. **Phase 4**: End-to-end testing
-11. **Phase 5**: Go live
+8. **Apply new migrations** - Deploy `TestimonialDisplay` migration on Render
+9. **Set up Render cron jobs** for automated daily/weekly digests
+10. **Phase 3**: Install export script on PrintSmith Windows server
+11. **Phase 4**: End-to-end testing
+12. **Phase 5**: Go live
+13. **Fix preview build error** - Resolve duplicate `recipientFirstName` definition and restore /api/preview/daily
 
 ### LoyaltyLoop Integration ✅ COMPLETE
 - ✅ API client created (`src/lib/loyaltyloop.ts`)
