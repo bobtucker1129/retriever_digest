@@ -465,7 +465,7 @@ You need to create **TWO tasks**: one for daily exports and one for Friday eveni
 
 ### Recipients
 
-- [ ] All recipients added to Recipients tab
+- [x] All recipients added to Recipients tab (33 team members added 2026-02-01)
 - [ ] Verified email addresses are correct
 - [ ] Test email sent to each recipient
 
