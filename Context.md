@@ -226,15 +226,10 @@ EXPORT_API_SECRET=...              # Must match web app
   - SPF: `send` TXT record (`v=spf1 include:amazonses.com ~all`)
   - MX: `send` MX record (`feedback-smtp.us-east-1.amazonses.com`)
 
-### SPF Fix Required (2026-01-27)
-Emails going to spam because main domain SPF doesn't include Amazon SES.
+### SPF Fix ✅ COMPLETE (2026-01-27)
+Amazon SES authorized in SPF record for improved deliverability.
 
 **Current main domain SPF:**
-```
-v=spf1 mx ip4:185.230.63.171 ip4:185.230.63.186 ip4:185.230.63.107 ip4:23.236.62.147 include:_spf.google.com include:_spf.salesforce.com include:sendgrid.net ~all
-```
-
-**Required fix:** Add `include:amazonses.com` before `~all`:
 ```
 v=spf1 mx ip4:185.230.63.171 ip4:185.230.63.186 ip4:185.230.63.107 ip4:23.236.62.147 include:_spf.google.com include:_spf.salesforce.com include:sendgrid.net include:amazonses.com ~all
 ```
@@ -244,7 +239,74 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 
 ---
 
+## Automation Schedule
+
+### Export Schedule (PrintSmith Windows Server)
+
+**Daily Export:** 4:00 AM EST (7 days/week via Windows Task Scheduler)
+- **Monday-Friday:** Exports previous day's data
+- **Monday Special:** Exports Fri+Sat+Sun combined (captures weekend web orders and home estimates)
+- **Saturday/Sunday:** Exports previous day (activity saved but no email sent until Monday)
+
+**Friday Evening Export:** 8:00 PM EST (Weekly, Windows Task Scheduler)
+- Exports Friday's data 1 hour before weekly digest
+- Ensures Friday activity included in weekly summary
+
+### Email Schedule (Render Cron Jobs)
+
+**Daily Digest:** 7:00 AM EST Monday-Friday
+- Pulls most recent DigestData record
+- Monday shows Fri+Sat+Sun aggregated numbers
+- Tuesday-Friday show previous business day
+
+**Weekly Digest:** 9:00 PM EST Friday (6:00 PM PST)
+- Aggregates all DigestData records from Mon-Fri
+- Week-over-week comparisons
+- Sent after Friday evening export completes
+
+### How It Works
+
+**Export Script:** All exports are identical - they query PrintSmith for a date range and POST to `/api/export`, which stores data in DigestData table.
+
+**Digest Generation:**
+- **Daily:** `getLatestDigestData()` fetches most recent single record
+- **Weekly:** `getWeeklyDigestData()` fetches all records from current week's date range and aggregates them
+
+The same export script handles all scenarios - differences are in timing and how the app processes the stored data.
+
+---
+
 ## Session History
+### 2026-02-01 (Session 17): Automation Setup - Render Cron Jobs Complete
+- **Export Script Updates:** Modified `printsmith_export.py` for Monday weekend aggregation
+  - Changed `get_target_date()` to `get_target_date_range()` returning (start_date, end_date, is_weekend_catchup)
+  - Updated all query functions to accept date ranges instead of single dates
+  - Monday exports now capture Fri+Sat+Sun combined data
+  - Queries use `>= start_date AND <= end_date` pattern
+- **DEPLOYMENT.md Updates:** Added complete scheduling documentation
+  - Daily digest: 7am EST Mon-Fri (`0 12 * * 1-5`)
+  - Weekly digest: 9pm EST Friday (`0 2 * * 6`)
+  - Two Windows Task Scheduler tasks documented (daily 4am, Friday 8pm)
+  - Updated Quick Reference table with new schedules
+- **Render Cron Jobs Created and Tested:**
+  - `daily-digest-weekdays`: Mon-Fri at 12:00 UTC (7am EST)
+  - `weekly-digest-friday`: Saturday 02:00 UTC (Fri 9pm EST)
+  - Both tested successfully: sent 4 emails each with 0 failures
+- **Context.md:** Added "Automation Schedule" section documenting export and email timing
+- **Next:** Set up Windows Task Scheduler on PrintSmith server (will be done in separate session on server)
+
+### 2026-02-01 (Session 16): SPF Verification + Automation Schedule Planning
+- **SPF Record Verified:** Confirmed `include:amazonses.com` already added to boonegraphics.net SPF record
+  - Updated Context.md to mark SPF fix as complete
+- **Automation Schedule Clarified:** Documented complete export and email schedule
+  - Daily exports at 4am EST (7 days/week)
+  - Friday evening export at 8pm EST for weekly digest
+  - Daily emails Mon-Fri at 7am EST (no weekend emails)
+  - Weekly email Friday at 9pm EST
+  - Monday emails show Fri+Sat+Sun combined (weekend web orders + home estimates)
+- **Technical Understanding:** Confirmed all exports are identical - daily vs weekly is handled by digest aggregation logic
+- **Next:** Plan and implement automation setup (Render cron jobs + Windows Task Scheduler)
+
 ### 2026-02-01 (Session 14): Invoices Created ($) + Personalization (In Progress)
 - **New Metric:** Added “Invoices Created ($)” as sum of invoice subtotals for ordereddate
   - Export script now computes `dailyInvoicesCreatedAmount`
@@ -521,7 +583,7 @@ The `vpn` A record must be set to "DNS only" (gray cloud), not "Proxied" (orange
 4. ✅ **Logo accessible** - https://www.booneproofs.net/email/Retriever_Logo_White_smaller.png (optimized 27KB for Gmail)
 5. ✅ **Update Render EMAIL_FROM** - Changed to `Retriever Digest <digest@boonegraphics.net>` (no quotes)
 6. ✅ **Test production email** - Tested daily and weekly from admin portal
-7. **Fix SPF record** - Add `include:amazonses.com` to main domain SPF in Cloudflare (deliverability fix)
+7. ✅ **Fix SPF record** - Added `include:amazonses.com` to main domain SPF in Cloudflare (verified 2026-02-01)
 8. ✅ **Apply new migrations** - TestimonialDisplay migration deployed (shares same DB as local)
 9. ✅ **Fix preview build error** - recipientFirstName and TypeScript errors resolved
 10. **Set up Render cron jobs** for automated daily/weekly digests

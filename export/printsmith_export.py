@@ -62,24 +62,27 @@ def get_connection_config():
     }
 
 
-def get_target_date():
+def get_target_date_range():
     """
-    Get the target date for export.
-    Returns yesterday's date, but if yesterday was Saturday or Sunday, returns Friday.
+    Get the target date range for export.
+    
+    Returns (start_date, end_date, is_weekend_catchup):
+    - Monday: Returns (Friday, Sunday, True) to capture weekend activity
+    - Tue-Sun: Returns (yesterday, yesterday, False) for single day
     """
     today = datetime.now().date()
     yesterday = today - timedelta(days=1)
     
-    weekday = yesterday.weekday()
-    if weekday == 5:  # Saturday
-        target = yesterday - timedelta(days=1)  # Friday
-    elif weekday == 6:  # Sunday
-        target = yesterday - timedelta(days=2)  # Friday
+    if today.weekday() == 0:  # Monday
+        # Capture Fri + Sat + Sun
+        end_date = yesterday  # Sunday
+        start_date = yesterday - timedelta(days=2)  # Friday
+        logger.info(f"Monday detected - exporting weekend range: {start_date} to {end_date}")
+        return start_date, end_date, True
     else:
-        target = yesterday
-    
-    logger.info(f"Target date for export: {target}")
-    return target
+        # Regular single-day export
+        logger.info(f"Target date for export: {yesterday}")
+        return yesterday, yesterday, False
 
 
 def connect_to_printsmith():
@@ -109,18 +112,19 @@ def connect_to_printsmith():
         raise
 
 
-def get_new_jobs_created(conn, target_date):
+def get_new_jobs_created(conn, start_date, end_date):
     """
-    Query count of new jobs (invoices) created on a given date.
+    Query count of new jobs (invoices) created in a date range.
     Uses ordereddate which is when the job was entered into the system.
     """
-    logger.info(f"Querying new jobs created on {target_date}...")
+    logger.info(f"Querying new jobs created from {start_date} to {end_date}...")
     
     query = """
         SELECT COUNT(*) AS jobs_created
         FROM invoicebase ib
         JOIN invoice i ON ib.id = i.id
-        WHERE DATE(ib.ordereddate) = %s
+        WHERE DATE(ib.ordereddate) >= %s
+          AND DATE(ib.ordereddate) <= %s
           AND ib.isdeleted = false
           AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
@@ -128,7 +132,7 @@ def get_new_jobs_created(conn, target_date):
     
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (target_date,))
+            cur.execute(query, (start_date, end_date))
             row = cur.fetchone()
             count = row[0] if row[0] else 0
             logger.info(f"Found {count} new jobs created")
@@ -138,18 +142,19 @@ def get_new_jobs_created(conn, target_date):
         raise
 
 
-def get_invoices_created_amount(conn, target_date):
+def get_invoices_created_amount(conn, start_date, end_date):
     """
-    Query total dollar value of invoices created on a given date.
+    Query total dollar value of invoices created in a date range.
     Uses ordereddate to match "Invoices Created" count.
     """
-    logger.info(f"Querying invoice value for new jobs on {target_date}...")
+    logger.info(f"Querying invoice value for new jobs from {start_date} to {end_date}...")
     
     query = """
         SELECT COALESCE(SUM(ib.subtotal), 0) AS invoices_created_amount
         FROM invoicebase ib
         JOIN invoice i ON ib.id = i.id
-        WHERE DATE(ib.ordereddate) = %s
+        WHERE DATE(ib.ordereddate) >= %s
+          AND DATE(ib.ordereddate) <= %s
           AND ib.isdeleted = false
           AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
@@ -157,7 +162,7 @@ def get_invoices_created_amount(conn, target_date):
     
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (target_date,))
+            cur.execute(query, (start_date, end_date))
             row = cur.fetchone()
             amount = float(row[0]) if row and row[0] else 0.0
             logger.info(f"Invoice value for new jobs: ${amount:,.2f}")
@@ -167,15 +172,15 @@ def get_invoices_created_amount(conn, target_date):
         raise
 
 
-def get_completed_invoices(conn, target_date):
+def get_completed_invoices(conn, start_date, end_date):
     """
-    Query yesterday's completed (posted) invoices.
+    Query completed (posted) invoices for a date range.
     Returns list of invoices and calculated totals.
     
     Note: Individual invoice amounts use subtotal (includes postage/shipping).
     The total_revenue comes from salesbase.totalsales (excludes postage/shipping).
     """
-    logger.info(f"Querying completed invoices for {target_date}...")
+    logger.info(f"Querying completed invoices from {start_date} to {end_date}...")
     
     query = """
         SELECT 
@@ -192,7 +197,8 @@ def get_completed_invoices(conn, target_date):
         JOIN invoice i ON ib.id = i.id
         LEFT JOIN account a ON ib.account_id = a.id
         LEFT JOIN salesrep s ON ib.salesrep_id = s.id
-        WHERE DATE(ib.pickupdate) = %s
+        WHERE DATE(ib.pickupdate) >= %s
+          AND DATE(ib.pickupdate) <= %s
           AND ib.onpendinglist = false
           AND ib.isdeleted = false
           AND i.isdeleted = false
@@ -204,7 +210,7 @@ def get_completed_invoices(conn, target_date):
     
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (target_date,))
+            cur.execute(query, (start_date, end_date))
             rows = cur.fetchall()
             
             for row in rows:
@@ -225,7 +231,7 @@ def get_completed_invoices(conn, target_date):
             logger.info(f"Found {invoice_count} completed invoices")
         
         # Get total revenue from salesbase (excludes postage/shipping)
-        total_revenue = get_revenue_from_salesbase(conn, target_date, target_date)
+        total_revenue = get_revenue_from_salesbase(conn, start_date, end_date)
         logger.info(f"Daily revenue (from salesbase): ${total_revenue:,.2f}")
         
         return {
@@ -239,12 +245,12 @@ def get_completed_invoices(conn, target_date):
         raise
 
 
-def get_estimates_created(conn, target_date):
+def get_estimates_created(conn, start_date, end_date):
     """
-    Query yesterday's created estimates.
+    Query created estimates for a date range.
     Returns estimate count and list of top estimates by amount.
     """
-    logger.info(f"Querying estimates created on {target_date}...")
+    logger.info(f"Querying estimates created from {start_date} to {end_date}...")
     
     query = """
         SELECT 
@@ -258,7 +264,8 @@ def get_estimates_created(conn, target_date):
         FROM estimate e
         JOIN invoicebase ib ON e.id = ib.id
         LEFT JOIN account a ON ib.account_id = a.id
-        WHERE DATE(ib.ordereddate) = %s
+        WHERE DATE(ib.ordereddate) >= %s
+          AND DATE(ib.ordereddate) <= %s
           AND ib.isdeleted = false
           AND COALESCE(ib.voided, false) = false
         ORDER BY ib.subtotal DESC
@@ -268,7 +275,7 @@ def get_estimates_created(conn, target_date):
     
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (target_date,))
+            cur.execute(query, (start_date, end_date))
             rows = cur.fetchall()
             
             for row in rows:
@@ -296,12 +303,12 @@ def get_estimates_created(conn, target_date):
         raise
 
 
-def get_new_customer_estimates(conn, target_date, limit=5):
+def get_new_customer_estimates(conn, start_date, end_date, limit=5):
     """
-    Find new customers based on first-ever estimate created on target date.
+    Find new customers based on first-ever estimate created in date range.
     Returns a list of estimate details for shoutouts.
     """
-    logger.info(f"Querying new customer estimates on {target_date}...")
+    logger.info(f"Querying new customer estimates from {start_date} to {end_date}...")
     
     # Exclude program accounts
     excluded_accounts = tuple(EXCLUDED_ACCOUNT_IDS) or (0,)
@@ -322,7 +329,8 @@ def get_new_customer_estimates(conn, target_date, limit=5):
             JOIN invoicebase ib ON e.id = ib.id
             LEFT JOIN account a ON ib.account_id = a.id
             LEFT JOIN salesrep s ON ib.salesrep_id = s.id
-            WHERE DATE(ib.ordereddate) = %s
+            WHERE DATE(ib.ordereddate) >= %s
+              AND DATE(ib.ordereddate) <= %s
               AND ib.isdeleted = false
               AND COALESCE(ib.voided, false) = false
               AND ib.account_id NOT IN %s
@@ -354,7 +362,7 @@ def get_new_customer_estimates(conn, target_date, limit=5):
     items = []
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (target_date, excluded_accounts, target_date, limit))
+            cur.execute(query, (start_date, end_date, excluded_accounts, start_date, limit))
             rows = cur.fetchall()
             
             for row in rows:
@@ -472,15 +480,15 @@ def get_bd_open_invoices(conn):
         raise
 
 
-def get_daily_pm_performance(conn, target_date):
+def get_daily_pm_performance(conn, start_date, end_date):
     """
-    Query new orders (invoices) created on the target date grouped by PM.
-    Returns list of PMs with their new orders and estimated revenue for the day.
+    Query new orders (invoices) created in date range grouped by PM.
+    Returns list of PMs with their new orders and estimated revenue for the period.
     
     Note: Uses ordereddate (when job was created) instead of pickupdate (when completed)
     to show daily activity even on days without closeouts.
     """
-    logger.info(f"Querying daily PM performance (new orders) for {target_date}...")
+    logger.info(f"Querying daily PM performance (new orders) from {start_date} to {end_date}...")
     
     valid_pms = ('Jim', 'Steve', 'Shelley', 'Ellie', 'Ellie Lemire')
     
@@ -491,7 +499,8 @@ def get_daily_pm_performance(conn, target_date):
             COALESCE(SUM(ib.subtotal), 0) AS orders_revenue
         FROM invoicebase ib
         JOIN invoice i ON ib.id = i.id
-        WHERE DATE(ib.ordereddate) = %s
+        WHERE DATE(ib.ordereddate) >= %s
+          AND DATE(ib.ordereddate) <= %s
           AND ib.isdeleted = false
           AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
@@ -504,7 +513,7 @@ def get_daily_pm_performance(conn, target_date):
     
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (target_date, valid_pms))
+            cur.execute(query, (start_date, end_date, valid_pms))
             rows = cur.fetchall()
             
             for row in rows:
@@ -523,15 +532,15 @@ def get_daily_pm_performance(conn, target_date):
         raise
 
 
-def get_daily_bd_performance(conn, target_date):
+def get_daily_bd_performance(conn, start_date, end_date):
     """
-    Query new orders (invoices) created on the target date grouped by BD.
-    Returns list of BDs with their new orders and estimated revenue for the day.
+    Query new orders (invoices) created in date range grouped by BD.
+    Returns list of BDs with their new orders and estimated revenue for the period.
     
     Note: Uses ordereddate (when job was created) instead of pickupdate (when completed)
     to show daily activity even on days without closeouts.
     """
-    logger.info(f"Querying daily BD performance (new orders) for {target_date}...")
+    logger.info(f"Querying daily BD performance (new orders) from {start_date} to {end_date}...")
     
     valid_bds = ('House', 'Paige Chamberlain', 'Sean Swaim', 'Mike Meyer', 'Dave Tanner', 'Rob Grayson', 'Robert Galle')
     
@@ -543,7 +552,8 @@ def get_daily_bd_performance(conn, target_date):
         FROM invoicebase ib
         JOIN invoice i ON ib.id = i.id
         JOIN salesrep s ON ib.salesrep_id = s.id
-        WHERE DATE(ib.ordereddate) = %s
+        WHERE DATE(ib.ordereddate) >= %s
+          AND DATE(ib.ordereddate) <= %s
           AND ib.isdeleted = false
           AND i.isdeleted = false
           AND COALESCE(ib.voided, false) = false
@@ -556,7 +566,7 @@ def get_daily_bd_performance(conn, target_date):
     
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (target_date, valid_bds))
+            cur.execute(query, (start_date, end_date, valid_bds))
             rows = cur.fetchall()
             
             for row in rows:
@@ -1507,22 +1517,22 @@ def main():
     conn = None
     try:
         conn = connect_to_printsmith()
-        target_date = get_target_date()
+        start_date, end_date, is_weekend_catchup = get_target_date_range()
         
-        invoice_data = get_completed_invoices(conn, target_date)
+        invoice_data = get_completed_invoices(conn, start_date, end_date)
         logger.info(f"Invoice export: {invoice_data['invoice_count']} invoices, ${invoice_data['total_revenue']:,.2f} revenue")
         
-        # Get new jobs created for the day (different from completed invoices)
-        daily_new_jobs = get_new_jobs_created(conn, target_date)
+        # Get new jobs created for the period (different from completed invoices)
+        daily_new_jobs = get_new_jobs_created(conn, start_date, end_date)
         logger.info(f"New jobs created: {daily_new_jobs}")
         
-        daily_new_jobs_amount = get_invoices_created_amount(conn, target_date)
+        daily_new_jobs_amount = get_invoices_created_amount(conn, start_date, end_date)
         logger.info(f"New jobs value: ${daily_new_jobs_amount:,.2f}")
         
-        estimate_data = get_estimates_created(conn, target_date)
+        estimate_data = get_estimates_created(conn, start_date, end_date)
         logger.info(f"Estimate export: {estimate_data['estimate_count']} estimates created")
         
-        new_customer_estimates = get_new_customer_estimates(conn, target_date)
+        new_customer_estimates = get_new_customer_estimates(conn, start_date, end_date)
         logger.info(f"New customer estimates: {len(new_customer_estimates)}")
         
         pm_open_data = get_pm_open_invoices(conn)
@@ -1531,11 +1541,11 @@ def main():
         bd_open_data = get_bd_open_invoices(conn)
         logger.info(f"BD open invoices: {len(bd_open_data)} BDs with open invoices")
         
-        # Get daily performance (new orders created for the day)
-        pm_daily_data = get_daily_pm_performance(conn, target_date)
+        # Get daily performance (new orders created for the period)
+        pm_daily_data = get_daily_pm_performance(conn, start_date, end_date)
         logger.info(f"PM daily performance: {len(pm_daily_data)} PMs with new orders")
         
-        bd_daily_data = get_daily_bd_performance(conn, target_date)
+        bd_daily_data = get_daily_bd_performance(conn, start_date, end_date)
         logger.info(f"BD daily performance: {len(bd_daily_data)} BDs with new orders")
         
         mtd_data = get_mtd_metrics(conn)
@@ -1553,9 +1563,9 @@ def main():
         ai_insights = get_ai_insights(conn, exclude_account_ids=recently_shown)
         logger.info(f"AI Insights: {len(ai_insights)} insights gathered")
         
-        # Assemble all data
+        # Assemble all data (use end_date as the primary export_date)
         export_data = assemble_export_data(
-            target_date, invoice_data, estimate_data, 
+            end_date, invoice_data, estimate_data, 
             pm_open_data, bd_open_data, pm_daily_data, bd_daily_data,
             mtd_data, ytd_data, ai_insights, daily_new_jobs, daily_new_jobs_amount,
             new_customer_estimates

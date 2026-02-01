@@ -265,21 +265,23 @@ Or trigger via the Render dashboard → Shell.
 
 In Render dashboard → your web service → "Cron Jobs":
 
-**Daily Digest (4:00 AM PST = 12:00 UTC):**
-- Name: `daily-digest`
-- Schedule: `0 12 * * *`
+**Daily Digest (7:00 AM EST Mon-Fri = 12:00 UTC Mon-Fri):**
+- Name: `daily-digest-weekdays`
+- Schedule: `0 12 * * 1-5` (Monday-Friday only)
 - Command:
 ```bash
-curl -X POST https://retriever-daily-digest.onrender.com/api/digest/daily -H "X-Cron-Secret: YOUR_CRON_SECRET"
+curl -X POST https://retriever-digest.onrender.com/api/digest/daily -H "X-Cron-Secret: YOUR_CRON_SECRET"
 ```
 
-**Weekly Digest (Friday 6:00 PM PST = Saturday 02:00 UTC):**
-- Name: `weekly-digest`
+**Weekly Digest (Friday 9:00 PM EST = Saturday 02:00 UTC):**
+- Name: `weekly-digest-friday`
 - Schedule: `0 2 * * 6`
 - Command:
 ```bash
-curl -X POST https://retriever-daily-digest.onrender.com/api/digest/weekly -H "X-Cron-Secret: YOUR_CRON_SECRET"
+curl -X POST https://retriever-digest.onrender.com/api/digest/weekly -H "X-Cron-Secret: YOUR_CRON_SECRET"
 ```
+
+**Note:** Daily digest only sends Mon-Fri. Monday's email will include Fri+Sat+Sun aggregated data from the weekend exports.
 
 ---
 
@@ -343,17 +345,22 @@ python printsmith_export.py
 
 ### Step 3.4: Set Up Windows Task Scheduler
 
+You need to create **TWO tasks**: one for daily exports and one for Friday evening.
+
+#### Task 1: Daily Export (All Days)
+
 1. Open **Task Scheduler**
 2. Click **Create Task** (not Basic Task)
 
 **General Tab:**
-- Name: `Retriever PrintSmith Export`
+- Name: `Retriever Daily Export`
 - Check: "Run whether user is logged on or not"
 - Check: "Run with highest privileges"
 
 **Triggers Tab:**
-- New → Daily at **4:00:00 AM**
+- New → Daily at **4:00:00 AM EST**
 - Recur every 1 day
+- Enabled: ✓
 
 **Actions Tab:**
 - New → Start a program
@@ -367,9 +374,40 @@ python printsmith_export.py
 
 3. Click OK, enter Windows credentials
 
-### Step 3.5: Verify Scheduled Task
+#### Task 2: Friday Evening Export
 
-1. Right-click the task → "Run"
+1. Open **Task Scheduler**
+2. Click **Create Task** (not Basic Task)
+
+**General Tab:**
+- Name: `Retriever Friday Evening Export`
+- Check: "Run whether user is logged on or not"
+- Check: "Run with highest privileges"
+
+**Triggers Tab:**
+- New → Weekly on **Friday** at **8:00:00 PM EST**
+- Recur every 1 week on: Friday ✓
+- Enabled: ✓
+
+**Actions Tab:**
+- New → Start a program
+- Program: `python`
+- Arguments: `C:\Retriever\export\printsmith_export.py`
+- Start in: `C:\Retriever\export`
+
+**Settings Tab:**
+- Check: "Run task as soon as possible after scheduled start is missed"
+- Check: "If task fails, restart every 5 minutes" (up to 3 times)
+
+3. Click OK, enter Windows credentials
+
+**Why Two Tasks?**
+- Daily 4am export: Captures previous day's data (Mon exports Fri+Sat+Sun combined)
+- Friday 8pm export: Ensures Friday's data is included in weekly digest (sends at 9pm EST)
+
+### Step 3.5: Verify Scheduled Tasks
+
+1. Right-click each task → "Run"
 2. Check **History** tab for success
 3. Check Render app → Testing tab → Preview should show real data
 
@@ -501,9 +539,10 @@ The Python export script generates intelligent insights:
 
 | Cron Schedule | Time | Purpose |
 |---------------|------|---------|
-| `0 12 * * *` | 4:00 AM PST | Daily digest |
-| `0 2 * * 6` | Fri 6:00 PM PST | Weekly digest |
-| Task Scheduler 4:00 AM EST | 4:00 AM EST | PrintSmith export |
+| `0 12 * * 1-5` | 7:00 AM EST (Mon-Fri) | Daily digest |
+| `0 2 * * 6` | 9:00 PM EST Friday | Weekly digest |
+| Task Scheduler Daily | 4:00 AM EST (All days) | PrintSmith export |
+| Task Scheduler Friday | 8:00 PM EST (Friday only) | Friday evening export |
 
 | Contact | Purpose |
 |---------|---------|
