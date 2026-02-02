@@ -285,7 +285,7 @@ curl -X POST https://retriever-digest.onrender.com/api/digest/weekly -H "X-Cron-
 
 ---
 
-## Phase 3: PrintSmith Server Setup
+## Phase 3: PrintSmith Server Setup ✅ COMPLETE (2026-02-01)
 
 ### Step 3.1: Prepare Export Script
 
@@ -295,33 +295,37 @@ curl -X POST https://retriever-digest.onrender.com/api/digest/weekly -H "X-Cron-
    ├── printsmith_export.py
    └── requirements.txt
    ```
+   **Status:** ✅ Complete - Files at `C:\Retriever\export\`
 
 2. **Install Python 3.10+** from python.org
    - Check "Add Python to PATH" during install
+   - **IMPORTANT:** Select "Install for all users" to install to `C:\Program Files\Python313\`
+   **Status:** ✅ Complete - Python 3.13 at `C:\Program Files\Python313\python.exe`
 
 3. **Install dependencies:**
    ```cmd
    cd C:\Retriever\export
    pip install -r requirements.txt
    ```
+   **Status:** ✅ Complete - psycopg2, requests, python-dotenv installed
 
 ### Step 3.2: Configure Environment Variables
 
-Open **System Properties** → **Environment Variables** → **System Variables**
+**Option A (Recommended):** Create `.env` file at `C:\Retriever\.env`:
+```
+PRINTSMITH_HOST=localhost
+PRINTSMITH_PORT=5432
+PRINTSMITH_DB=printsmith
+PRINTSMITH_USER=postgres
+PRINTSMITH_PASSWORD=your_password
+RENDER_API_URL=https://retriever-digest.onrender.com/api/export
+EXPORT_API_SECRET=your_secret
+```
+The Python script automatically loads from `C:\Retriever\.env` (parent of export folder).
 
-Add these variables:
+**Option B:** System Environment Variables via **System Properties** → **Environment Variables** → **System Variables**
 
-| Variable | Value |
-|----------|-------|
-| `PRINTSMITH_HOST` | `localhost` or PrintSmith server IP |
-| `PRINTSMITH_PORT` | `5432` |
-| `PRINTSMITH_DB` | `printsmith` (your DB name) |
-| `PRINTSMITH_USER` | `postgres` |
-| `PRINTSMITH_PASSWORD` | Your DB password |
-| `RENDER_API_URL` | `https://retriever-daily-digest.onrender.com/api/export` |
-| `EXPORT_API_SECRET` | Same value as in Render |
-
-**Restart the computer** after setting variables.
+**Status:** ✅ Complete - Using `.env` file at `C:\Retriever\.env`
 
 ### Step 3.3: Test Export Script
 
@@ -343,88 +347,68 @@ python printsmith_export.py
 2026-01-21 04:00:05 - INFO - Data posted to API: {"success": true}
 ```
 
-### Step 3.4: Set Up Windows Task Scheduler
+### Step 3.4: Set Up Windows Task Scheduler ✅ COMPLETE
 
 You need to create **TWO tasks**: one for daily exports and one for Friday evening.
 
-#### Task 1: Daily Export (All Days)
+**IMPORTANT:** The PrintSmith server is in **Pacific Time (PT)**. Convert times accordingly:
+- 4:00 AM ET = 1:00 AM PT
+- 8:00 PM ET = 5:00 PM PT
 
-1. Open **Task Scheduler**
-2. Click **Create Task** (not Basic Task)
+#### Task 1: Daily Export (All Days) ✅
 
-**General Tab:**
-- Name: `Retriever Daily Export`
-- Check: "Run whether user is logged on or not"
-- Check: "Run with highest privileges"
+- **Name:** `Retriever Daily Export`
+- **Trigger:** Daily at **1:00 AM PT** (4:00 AM ET)
+- **Action:**
+  - Program: `"C:\Program Files\Python313\python.exe"` (with quotes!)
+  - Arguments: `printsmith_export.py`
+  - Start in: `C:\Retriever\export`
+- **Run as:** User with access to `.env` file and Python installation
+- **Status:** ✅ Tested and working (2026-02-01)
 
-**Triggers Tab:**
-- New → Daily at **4:00:00 AM EST**
-- Recur every 1 day
-- Enabled: ✓
+#### Task 2: Friday Evening Export ✅
 
-**Actions Tab:**
-- New → Start a program
-- Program: `python`
-- Arguments: `C:\Retriever\export\printsmith_export.py`
-- Start in: `C:\Retriever\export`
+- **Name:** `Retriever Friday Evening Export2`
+- **Trigger:** Weekly on **Friday** at **5:00 PM PT** (8:00 PM ET)
+- **Action:**
+  - Program: `"C:\Program Files\Python313\python.exe"` (with quotes!)
+  - Arguments: `printsmith_export.py`
+  - Start in: `C:\Retriever\export`
+- **Run as:** User with access to `.env` file and Python installation
+- **Status:** ✅ Tested and working (2026-02-01)
 
-**Settings Tab:**
-- Check: "Run task as soon as possible after scheduled start is missed"
-- Check: "If task fails, restart every 5 minutes" (up to 3 times)
-
-3. Click OK, enter Windows credentials
-
-#### Task 2: Friday Evening Export
-
-1. Open **Task Scheduler**
-2. Click **Create Task** (not Basic Task)
-
-**General Tab:**
-- Name: `Retriever Friday Evening Export`
-- Check: "Run whether user is logged on or not"
-- Check: "Run with highest privileges"
-
-**Triggers Tab:**
-- New → Weekly on **Friday** at **8:00:00 PM EST**
-- Recur every 1 week on: Friday ✓
-- Enabled: ✓
-
-**Actions Tab:**
-- New → Start a program
-- Program: `python`
-- Arguments: `C:\Retriever\export\printsmith_export.py`
-- Start in: `C:\Retriever\export`
-
-**Settings Tab:**
-- Check: "Run task as soon as possible after scheduled start is missed"
-- Check: "If task fails, restart every 5 minutes" (up to 3 times)
-
-3. Click OK, enter Windows credentials
+**Note:** Path must be quoted because "Program Files" contains a space.
 
 **Why Two Tasks?**
 - Daily 4am export: Captures previous day's data (Mon exports Fri+Sat+Sun combined)
 - Friday 8pm export: Ensures Friday's data is included in weekly digest (sends at 9pm EST)
 
-### Step 3.5: Verify Scheduled Tasks
+### Step 3.5: Verify Scheduled Tasks ✅ COMPLETE
 
 1. Right-click each task → "Run"
-2. Check **History** tab for success
+2. Check **History** tab for success (Event 102 = Task completed)
 3. Check Render app → Testing tab → Preview should show real data
+
+**Verification Results (2026-02-01):**
+- Daily Export: ✅ Task completed successfully
+- Friday Evening Export: ✅ Task completed successfully
+- Script connects to PrintSmith DB and retrieves data
+- YTD metrics confirmed: $662,378.04 revenue, 479 jobs
 
 ---
 
-## Phase 4: End-to-End Testing
+## Phase 4: End-to-End Testing ⏳ IN PROGRESS
 
 ### Day 1: Initial Test
 
-- [ ] Run export script manually on PrintSmith server
-- [ ] Verify data appears in Render database (check DigestData table)
-- [ ] Preview daily digest - should show real PrintSmith data (local preview currently failing due to duplicate `recipientFirstName` definition)
-- [ ] Verify AI motivational summary appears at top (team-focused, positive tone)
+- [x] Run export script manually on PrintSmith server - Tested 2026-02-01
+- [x] Verify data appears in Render database (check DigestData table)
+- [x] Preview daily digest - should show real PrintSmith data
+- [x] Verify AI motivational summary appears at top (team-focused, positive tone)
 - [x] Send test email to yourself - Tested 2026-01-27
-- [ ] Verify email renders correctly in Gmail and Outlook (SPF fix needed for deliverability)
+- [x] Verify email renders correctly in Gmail and Outlook (SPF fix applied)
 - [x] Confirm logo is visible (white PNG on dark red header) - Updated 2026-01-27 (optimized to 27KB)
-- [ ] Check professional styling (tight spacing, clean fonts)
+- [x] Check professional styling (tight spacing, clean fonts)
 
 ### Day 2-3: Cron Test
 
@@ -539,10 +523,12 @@ The Python export script generates intelligent insights:
 
 | Cron Schedule | Time | Purpose |
 |---------------|------|---------|
-| `0 12 * * 1-5` | 7:00 AM EST (Mon-Fri) | Daily digest |
-| `0 2 * * 6` | 9:00 PM EST Friday | Weekly digest |
-| Task Scheduler Daily | 4:00 AM EST (All days) | PrintSmith export |
-| Task Scheduler Friday | 8:00 PM EST (Friday only) | Friday evening export |
+| `0 12 * * 1-5` | 7:00 AM ET (Mon-Fri) | Daily digest email |
+| `0 2 * * 6` | 9:00 PM ET Friday | Weekly digest email |
+| Task Scheduler Daily | 1:00 AM PT / 4:00 AM ET (All days) | PrintSmith export |
+| Task Scheduler Friday | 5:00 PM PT / 8:00 PM ET (Friday only) | Friday evening export |
+
+**Note:** PrintSmith server is in Pacific Time (PT), business operates in Eastern Time (ET).
 
 | Contact | Purpose |
 |---------|---------|

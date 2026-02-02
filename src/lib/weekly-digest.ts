@@ -295,9 +295,9 @@ function renderProgressBar(current: number, goal: number, label: string): string
   
   return `
     <div style="margin-bottom: 12px;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-        <span style="font-weight: 500; font-size: 13px; color: #374151;">${label}</span>
-        <span style="font-size: 13px; color: #6b7280;">${formatNumber(current)} / ${formatNumber(goal)} (${percentage}%)</span>
+      <div style="margin-bottom: 2px;">
+        <span style="font-weight: 500; font-size: 13px; color: #374151;">${label}:</span>
+        <span style="font-size: 13px; color: #6b7280; margin-left: 12px;">${formatNumber(current)} / ${formatNumber(goal)} (${percentage}%)</span>
       </div>
       <div style="background-color: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
         <div style="background-color: ${color}; height: 100%; width: ${percentage}%; transition: width 0.3s;"></div>

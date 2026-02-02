@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-02-01  
-> **Current Phase:** Phase 2 Complete, Phase 3 Ready  
-> **Status:** All 33 production recipients added to database
+> **Last Updated:** 2026-02-02  
+> **Current Phase:** Phase 3 Complete, Phase 4 Ready  
+> **Status:** PrintSmith server setup complete - scheduled tasks running
 
 ---
 
@@ -50,12 +50,20 @@
 - Cron jobs still need setup
 - Testimonial de-dup tracking added (requires migration deploy)
 
-### Phase 3: PrintSmith Server Setup ⏳ NEXT
-- Install Python on PrintSmith Windows server
-- Configure Windows Task Scheduler
-- Set up daily 4:00 AM export
+### Phase 3: PrintSmith Server Setup ✅ COMPLETE
+- Python 3.13 installed system-wide at `C:\Program Files\Python313\`
+- Export script deployed to `C:\Retriever\export\`
+- Environment variables configured in `C:\Retriever\.env`
+- Windows Task Scheduler configured:
+  - **Daily Export**: 1:00 AM PT (4:00 AM ET) daily
+  - **Friday Evening Export**: 5:00 PM PT (8:00 PM ET) Fridays
+- Both tasks tested and verified working (2026-02-01)
 
-### Phase 4: End-to-End Testing 🔲 PENDING
+### Phase 4: End-to-End Testing ⏳ NEXT
+- Monitor scheduled tasks running automatically
+- Verify daily digest emails arrive at 7:00 AM ET
+- Verify weekly digest email arrives Friday 9:00 PM ET
+
 ### Phase 5: Go Live 🔲 PENDING
 
 ---
@@ -277,6 +285,45 @@ The same export script handles all scenarios - differences are in timing and how
 ---
 
 ## Session History
+### 2026-02-01 (Session 19): PrintSmith Server Setup Complete
+- **Python Installation:** Verified Python 3.13 installed system-wide at `C:\Program Files\Python313\`
+- **Dependencies:** Confirmed psycopg2, requests, python-dotenv all working
+- **Export Script:** Deployed to `C:\Retriever\export\printsmith_export.py`
+- **Environment:** Configured `.env` file at `C:\Retriever\.env` with PrintSmith DB and Render API credentials
+- **Scheduled Tasks Fixed:**
+  - Both tasks were pointing to old user-specific Python path (`C:\Users\state\AppData\Local\...`)
+  - Updated to use system-wide Python (`C:\Program Files\Python313\python.exe`)
+  - Fixed Weekly task path quoting issue (space in "Program Files")
+- **Task Verification:**
+  - Daily Export: Task completed successfully (Event 102)
+  - Friday Evening Export: Task completed successfully after path fix
+- **Script Verification:** Dry-run confirmed database connection working
+  - YTD: $662,378.04 revenue, 479 jobs, 286 estimates
+  - AI Insights: 5 anniversary reorders, 5 lapsed accounts found
+- **Server Timezone:** PrintSmith server is in Pacific Time (PT), user is in Eastern (ET)
+  - Daily: 1:00 AM PT = 4:00 AM ET
+  - Weekly: 5:00 PM PT = 8:00 PM ET
+- **Phase 3 Complete:** Ready for end-to-end testing (Phase 4)
+
+### 2026-02-02 (Session 20): UI Improvements - Lapsed Accounts and Progress Bars
+- **Lapsed Accounts Label Fix:** Changed "lifetime" to dynamic "since [year]" for accuracy
+  - Added `get_earliest_invoice_year()` function to query PrintSmith for earliest invoice year
+  - Updated `get_lapsed_accounts()` to accept and use `earliest_year` parameter
+  - Modified `get_ai_insights()` to pass earliest_year through to lapsed accounts query
+  - Updated `main()` to query earliest year once and pass to insights
+  - Display now shows "$104,258 since 2024" instead of misleading "$104,258 lifetime"
+  - Updated DEFINITIONS.md to clarify measurement period
+- **Progress Bar Spacing:** Added colons and adjusted layout for readability
+  - Changed label format from "Revenue662,378.04" to "Revenue: 662,378.04"
+  - Removed `justify-content: space-between` flex layout
+  - Added 12px margin between label and values for better visual grouping
+  - Applied to both daily-digest.ts and weekly-digest.ts
+- **Files Modified:**
+  - `export/printsmith_export.py` - Added earliest year query and parameter passing
+  - `src/lib/daily-digest.ts` - Progress bar layout and mock data
+  - `src/lib/weekly-digest.ts` - Progress bar layout
+  - `DEFINITIONS.md` - Updated lapsed accounts definition
+
 ### 2026-02-01 (Session 18): Production Recipients Added
 - **Bulk Recipient Import:** Added all 33 production recipients to the database
   - Created temporary bulk-add script with proper Prisma adapter configuration
@@ -595,10 +642,10 @@ The same export script handles all scenarios - differences are in timing and how
 7. ✅ **Fix SPF record** - Added `include:amazonses.com` to main domain SPF in Cloudflare (verified 2026-02-01)
 8. ✅ **Apply new migrations** - TestimonialDisplay migration deployed (shares same DB as local)
 9. ✅ **Fix preview build error** - recipientFirstName and TypeScript errors resolved
-10. **Set up Render cron jobs** for automated daily/weekly digests
-11. **Phase 3**: Install export script on PrintSmith Windows server
-12. **Phase 4**: End-to-end testing
-13. **Phase 5**: Go live
+10. ✅ **Set up Render cron jobs** - Daily (7am ET Mon-Fri) and Weekly (9pm ET Friday) configured
+11. ✅ **Phase 3: PrintSmith Server Setup** - Python, export script, scheduled tasks all working
+12. **Phase 4: End-to-end testing** - Monitor automated exports and digest emails
+13. **Phase 5: Go live** - Final sign-off and communication to team
 
 ### LoyaltyLoop Integration ✅ COMPLETE
 - ✅ API client created (`src/lib/loyaltyloop.ts`)

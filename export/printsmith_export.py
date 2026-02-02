@@ -794,6 +794,40 @@ def get_ytd_metrics(conn):
 # AI INSIGHTS QUERIES
 # ============================================================================
 
+def get_earliest_invoice_year(conn):
+    """
+    Query PrintSmith to find the earliest invoice year in the database.
+    Used to provide accurate date range labels (e.g., "since 2024" instead of "lifetime").
+    
+    Args:
+        conn: Database connection
+    
+    Returns:
+        int: The earliest year, or None if no data found
+    """
+    logger.info("Querying earliest invoice year...")
+    
+    query = """
+        SELECT MIN(EXTRACT(YEAR FROM pickupdate))::INTEGER AS earliest_year
+        FROM invoicebase
+        WHERE isdeleted = false
+          AND pickupdate IS NOT NULL
+    """
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            row = cur.fetchone()
+            if row and row[0]:
+                logger.info(f"Earliest invoice year: {row[0]}")
+                return row[0]
+            logger.warning("No invoice year found in database")
+            return None
+    except Exception as e:
+        logger.error(f"Error querying earliest invoice year: {e}")
+        return None
+
+
 def get_anniversary_reorders(conn, exclude_account_ids=None):
     """
     Find large orders from 10-11 months ago that may need reordering.
@@ -867,7 +901,7 @@ def get_anniversary_reorders(conn, exclude_account_ids=None):
     return None
 
 
-def get_lapsed_accounts(conn, exclude_account_ids=None):
+def get_lapsed_accounts(conn, exclude_account_ids=None, earliest_year=None):
     """
     Find high-value accounts that haven't ordered in 6+ months.
     Time for a check-in call!
@@ -875,6 +909,7 @@ def get_lapsed_accounts(conn, exclude_account_ids=None):
     Args:
         conn: Database connection
         exclude_account_ids: Optional set of account IDs to exclude (recently shown)
+        earliest_year: Optional earliest invoice year for accurate date range label
     """
     logger.info("Querying lapsed high-value accounts...")
     
@@ -924,10 +959,11 @@ def get_lapsed_accounts(conn, exclude_account_ids=None):
             
             for row in rows:
                 last_order = row[2].strftime('%b %Y') if row[2] else 'Unknown'
+                year_label = f"since {earliest_year}" if earliest_year else "lifetime"
                 items.append({
                     'name': row[1] or 'Unknown',
                     'detail': f"Last order: {last_order}",
-                    'value': f"${float(row[3]):,.0f} lifetime" if row[3] else None,
+                    'value': f"${float(row[3]):,.0f} {year_label}" if row[3] else None,
                     'account_id': row[0]
                 })
             
@@ -1172,7 +1208,7 @@ def get_high_value_pending_estimates(conn, exclude_account_ids=None):
     return None
 
 
-def get_ai_insights(conn, exclude_account_ids=None, day_of_week=None):
+def get_ai_insights(conn, exclude_account_ids=None, day_of_week=None, earliest_year=None):
     """
     Gather AI insights from various queries with freshness controls.
     
@@ -1180,6 +1216,7 @@ def get_ai_insights(conn, exclude_account_ids=None, day_of_week=None):
         conn: Database connection
         exclude_account_ids: Set of account IDs to exclude (recently shown in past 14 days)
         day_of_week: Optional day override (0=Monday, 6=Sunday). If None, uses current day.
+        earliest_year: Optional earliest invoice year for accurate date range labels
     
     Returns:
         List of insight objects, rotating types by day of week for variety.
@@ -1221,7 +1258,11 @@ def get_ai_insights(conn, exclude_account_ids=None, day_of_week=None):
         if not func:
             continue
         try:
-            result = func(conn, exclude_account_ids=exclude_account_ids)
+            # Pass earliest_year to get_lapsed_accounts for accurate date range labels
+            if insight_type == 'lapsed_accounts':
+                result = func(conn, exclude_account_ids=exclude_account_ids, earliest_year=earliest_year)
+            else:
+                result = func(conn, exclude_account_ids=exclude_account_ids)
             if result:
                 insights.append(result)
         except Exception as e:
@@ -1519,6 +1560,9 @@ def main():
         conn = connect_to_printsmith()
         start_date, end_date, is_weekend_catchup = get_target_date_range()
         
+        # Query earliest invoice year for accurate date range labels
+        earliest_year = get_earliest_invoice_year(conn)
+        
         invoice_data = get_completed_invoices(conn, start_date, end_date)
         logger.info(f"Invoice export: {invoice_data['invoice_count']} invoices, ${invoice_data['total_revenue']:,.2f} revenue")
         
@@ -1560,7 +1604,7 @@ def main():
             recently_shown = get_recently_shown_accounts(days=14)
         
         # Get AI Insights with freshness controls (exclude recently shown, rotate by day)
-        ai_insights = get_ai_insights(conn, exclude_account_ids=recently_shown)
+        ai_insights = get_ai_insights(conn, exclude_account_ids=recently_shown, earliest_year=earliest_year)
         logger.info(f"AI Insights: {len(ai_insights)} insights gathered")
         
         # Assemble all data (use end_date as the primary export_date)
