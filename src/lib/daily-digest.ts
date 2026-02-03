@@ -741,7 +741,8 @@ export async function generateDailyDigest(
   const pmPerformance = digestData?.pmPerformance || [];
   const aiInsights = digestData?.aiInsights || [];
   const newCustomerEstimates = digestData?.newCustomerEstimates || [];
-  const dateStr = digestData?.date || new Date().toISOString().split('T')[0];
+  // Use today's date (when email is sent) not the data date (yesterday)
+  const dateStr = new Date().toISOString().split('T')[0];
   
   const newCustomerAlerts = await renderNewCustomerAlerts(newCustomerEstimates);
 
@@ -1012,7 +1013,8 @@ export async function generateDailyDigestWithMockFallback(
   const pmPerformance = dataToUse.pmPerformance || [];
   const aiInsights = dataToUse.aiInsights || [];
   const newCustomerEstimates = dataToUse.newCustomerEstimates || [];
-  const dateStr = dataToUse.date;
+  // Use today's date (when email is sent) not the data date (yesterday)
+  const dateStr = new Date().toISOString().split('T')[0];
 
   // Build rich context for AI - use previous data only if we have real data (not mock)
   const richContext = await buildRichAIContext(
