@@ -26,7 +26,7 @@ interface DigestDataPayload {
  *   {
  *     accountIds: number[],
  *     accountNames: string[],
- *     recentDigests: Array<{ date: string, headline?: string, accountNames: string[] }>
+ *     recentDigests: Array<{ date: string, headline?: string, accountNames: string[], receivedAt: string, exportSource?: string }>
  *   }
  */
 export async function GET(request: NextRequest) {
@@ -78,6 +78,8 @@ export async function GET(request: NextRequest) {
       date: string;
       headline?: string;
       accountNames: string[];
+      receivedAt: string;
+      exportSource?: string;
     }> = [];
 
     for (const digest of recentDigests) {
@@ -100,11 +102,14 @@ export async function GET(request: NextRequest) {
       // This helps AI avoid repetitive headlines
       const rawData = data as Record<string, unknown>;
       const headline = (rawData?.motivationalHeadline as string) || undefined;
+      const exportSource = (rawData?.export_source as string) || undefined;
       
       digestSummaries.push({
         date: digest.exportDate.toISOString().split('T')[0],
         headline,
         accountNames: shownInsights?.accountNames || [],
+        receivedAt: digest.createdAt.toISOString(),
+        exportSource,
       });
     }
 

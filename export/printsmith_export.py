@@ -1367,7 +1367,7 @@ def post_to_api(data: dict) -> dict:
 def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data, bd_open_data, 
                          pm_daily_data, bd_daily_data, mtd_data, ytd_data, ai_insights,
                          daily_new_jobs: int = 0, daily_new_jobs_amount: float = 0.0,
-                         new_customer_estimates: list = None) -> dict:
+                         new_customer_estimates: list = None, export_source: str = 'manual') -> dict:
     """Assemble all exported data into the API payload format."""
     
     # Extract biggest order from invoices
@@ -1446,6 +1446,8 @@ def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data,
     return {
         'export_date': target_date.isoformat(),
         'date': target_date.isoformat(),
+        'export_source': export_source,
+        'export_timestamp': datetime.now().isoformat(),
         'metrics': {
             'dailyRevenue': invoice_data['total_revenue'],
             'dailySalesCount': daily_new_jobs,  # Now "new jobs created" instead of "orders completed"
@@ -1554,14 +1556,31 @@ def main():
     """Main entry point for the export script."""
     parser = argparse.ArgumentParser(description='Export PrintSmith data to Retriever Daily Digest')
     parser.add_argument('--dry-run', action='store_true', help='Print JSON output without posting to API')
+    parser.add_argument('--source', type=str, default='manual', 
+                       help='Source of export: manual, scheduled, or other identifier')
+    parser.add_argument('--date', type=str, 
+                       help='Override date to export (YYYY-MM-DD format). If not provided, uses yesterday.')
     args = parser.parse_args()
     logger.info("Starting PrintSmith export...")
     logger.info(f"Export timestamp: {datetime.now().isoformat()}")
+    logger.info(f"Export source: {args.source}")
     
     conn = None
     try:
         conn = connect_to_printsmith()
-        start_date, end_date, is_weekend_catchup = get_target_date_range()
+        
+        # Allow date override
+        if args.date:
+            try:
+                override_date = datetime.strptime(args.date, '%Y-%m-%d').date()
+                start_date = end_date = override_date
+                is_weekend_catchup = False
+                logger.info(f"Using override date: {override_date}")
+            except ValueError:
+                logger.error(f"Invalid date format: {args.date}. Use YYYY-MM-DD format.")
+                sys.exit(1)
+        else:
+            start_date, end_date, is_weekend_catchup = get_target_date_range()
         
         # Query earliest invoice year for accurate date range labels
         earliest_year = get_earliest_invoice_year(conn)
@@ -1615,7 +1634,7 @@ def main():
             end_date, invoice_data, estimate_data, 
             pm_open_data, bd_open_data, pm_daily_data, bd_daily_data,
             mtd_data, ytd_data, ai_insights, daily_new_jobs, daily_new_jobs_amount,
-            new_customer_estimates
+            new_customer_estimates, export_source=args.source
         )
         
         if args.dry_run:

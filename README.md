@@ -2,6 +2,16 @@
 
 Internal sales motivation tool for BooneGraphics - extracts data from PrintSmith Vision and delivers daily/weekly email digests with sales metrics, goal progress, and AI insights.
 
+## Cursor Commands (Quick Access)
+
+Type these commands in Cursor for quick access to common tasks:
+
+- `/CheckExport` - Check when Render last received PrintSmith data
+- `/ManualExport` - Run PrintSmith export manually
+- `/ExportHelp` - Show comprehensive export system help
+
+See [`.cursor/commands/README.md`](.cursor/commands/README.md) for all available commands.
+
 ## Tech Stack
 
 - **Frontend/Backend**: Next.js 14 with App Router

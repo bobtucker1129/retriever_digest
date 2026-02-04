@@ -1,0 +1,112 @@
+# PrintSmith Export Scheduling Guide
+
+## Quick Reference
+
+### Using Cursor Commands (Recommended)
+
+If you're in Cursor, just type:
+- `/CheckExport` - Check if scheduled task worked
+- `/ManualExport` - Run export manually
+- `/ExportHelp` - Show full help and troubleshooting
+
+### Using Command Line
+
+Alternatively, run scripts directly:
+
+**Check if scheduled task worked:**
+```bash
+python3 export/check_last_export.py
+```
+
+This will show:
+- When the last export was received
+- Whether it was MANUAL or SCHEDULED
+- Timestamp to verify it matches your scheduled task time
+
+**Manual Export (when scheduled task fails):**
+```bash
+python3 export/printsmith_export.py --source manual
+```
+
+### Scheduled Task Configuration
+
+On the PrintSmith server, the scheduled task should run:
+
+```bash
+python3 /path/to/printsmith_export.py --source scheduled
+```
+
+**Important:** Add `--source scheduled` to distinguish automatic exports from manual ones.
+
+## How It Works
+
+1. **Export Script** runs on the PrintSmith server (either manually or via scheduled task)
+2. **Marks the source** as "manual" or "scheduled" 
+3. **Sends data** to Render's API endpoint
+4. **Render stores** the data with a timestamp (`createdAt`)
+5. **Check script** queries Render to see when last export was received and from what source
+
+## Troubleshooting
+
+### Problem: Scheduled task not running
+
+**Check:**
+1. Run `check_last_export.py` - if the last export shows "MANUAL", the scheduled task didn't work
+2. Verify the scheduled task time matches when you expect it to run
+3. Check the scheduled task logs on the PrintSmith server
+
+**Temporary fix:**
+Run manual export: `python3 export/printsmith_export.py --source manual`
+
+### Problem: Can't tell if scheduled task worked
+
+**Solution:**
+- After today's manual export, wait until tomorrow morning
+- Run `check_last_export.py` 
+- Look for a new export with source "SCHEDULED"
+- Check the timestamp - it should match your scheduled task time
+
+## Scheduled Task Setup (Windows Task Scheduler)
+
+When configuring the scheduled task on the PrintSmith server:
+
+**Program/Script:**
+```
+C:\Python39\python.exe
+```
+
+**Arguments:**
+```
+/path/to/retriever-daily-digest/export/printsmith_export.py --source scheduled
+```
+
+**Start in:**
+```
+/path/to/retriever-daily-digest/export
+```
+
+**Schedule:**
+- Daily at 6:00 AM (or whatever time you prefer)
+- Before the digest email is sent
+
+## Testing Tomorrow
+
+1. **Today:** Run manual export if needed
+   ```bash
+   python3 export/printsmith_export.py --source manual
+   ```
+
+2. **Tomorrow morning:** Check if scheduled task worked
+   ```bash
+   python3 export/check_last_export.py
+   ```
+
+3. **Look for:**
+   - New export dated today
+   - Source shows "SCHEDULED TASK (automatic)"
+   - Timestamp matches your scheduled task time
+
+4. **If it didn't work:**
+   - You'll only see yesterday's MANUAL export
+   - Run manual export again as temporary fix
+   - Troubleshoot the scheduled task later
