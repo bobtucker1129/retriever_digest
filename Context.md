@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-02-02  
+> **Last Updated:** 2026-02-03  
 > **Current Phase:** Phase 3 Complete, Phase 4 Ready  
-> **Status:** PrintSmith server setup complete - scheduled tasks running
+> **Status:** PrintSmith server setup complete - scheduled tasks running - visual branding updated
 
 ---
 
@@ -285,6 +285,28 @@ The same export script handles all scenarios - differences are in timing and how
 ---
 
 ## Session History
+### 2026-02-03 (Session 21): Visual Branding Update & Lapsed Accounts Per-Account Years
+- **Lapsed Accounts Enhancement:** Changed from global earliest year to per-account first order year
+  - Modified `get_lapsed_accounts()` query to calculate `MIN(EXTRACT(YEAR FROM ib.pickupdate))` per account
+  - Each account now shows accurate date range (e.g., "since 2015" vs misleading "since 2007")
+  - Removed dependency on global `earliest_year` parameter
+  - Updated DEFINITIONS.md: "since account's first invoice" instead of "since earliest invoice in system"
+- **Logo Update:** Changed logo URL across all digest locations
+  - Old: `Retriever_Logo_White_smaller.png` (27KB optimized version)
+  - New: `RETRIEVER@3x.png` (new branding)
+  - Applied to both daily-digest.ts and weekly-digest.ts (6 total occurrences)
+- **Brand Color Update:** Updated red color throughout digest design
+  - Main red: `#B91C1C` → `#A1252B`
+  - Dark red: `#991B1B` → `#7D1D22` (footer background)
+  - Light red: `#FEE2E2` → `#F9E6E7` (stat boxes, insight cards)
+  - Affects headers, footers, section underlines, progress bars, and insight cards
+- **Files Modified:**
+  - `export/printsmith_export.py` - Lapsed accounts query with per-account year
+  - `src/lib/daily-digest.ts` - Logo URL and brand colors
+  - `src/lib/weekly-digest.ts` - Logo URL and brand colors
+  - `DEFINITIONS.md` - Lapsed accounts criteria clarification
+- **Deployment:** Committed and pushed to production (commit 43060b2)
+
 ### 2026-02-01 (Session 19): PrintSmith Server Setup Complete
 - **Python Installation:** Verified Python 3.13 installed system-wide at `C:\Program Files\Python313\`
 - **Dependencies:** Confirmed psycopg2, requests, python-dotenv all working

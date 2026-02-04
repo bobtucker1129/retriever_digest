@@ -407,7 +407,7 @@ You need to create **TWO tasks**: one for daily exports and one for Friday eveni
 - [x] Verify AI motivational summary appears at top (team-focused, positive tone)
 - [x] Send test email to yourself - Tested 2026-01-27
 - [x] Verify email renders correctly in Gmail and Outlook (SPF fix applied)
-- [x] Confirm logo is visible (white PNG on dark red header) - Updated 2026-01-27 (optimized to 27KB)
+- [x] Confirm logo is visible (RETRIEVER@3x.png on brand red header #A1252B) - Updated 2026-02-03
 - [x] Check professional styling (tight spacing, clean fonts)
 
 ### Day 2-3: Cron Test
