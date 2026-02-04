@@ -110,7 +110,7 @@ Actionable business intelligence generated from PrintSmith data.
 | Insight Type | Definition | Criteria |
 |--------------|------------|----------|
 | **Anniversary Reorders** | Large orders from ~1 year ago that may be due for reorder | Orders $1,000+ from 10-11 months ago |
-| **Lapsed Accounts** | High-value customers who haven't ordered recently | $5,000+ total value (since earliest invoice in system), inactive 6+ months |
+| **Lapsed Accounts** | High-value customers who haven't ordered recently | $5,000+ total value (since account's first invoice), inactive 6+ months |
 | **Hot Streak Accounts** | Customers with increasing order frequency | 3+ orders in last 90 days, up from prior period |
 | **High-Value Estimates** | Pending quotes that need follow-up | Estimates over $1,000 still open |
 | **Past Due Accounts** | Accounts with overdue AR balances | Overdue invoices (if AR data available) |

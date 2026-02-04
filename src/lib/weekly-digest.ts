@@ -8,13 +8,13 @@ import type { DigestDataPayload, PerformanceData, ShoutoutWithRecipient, NewCust
 import { getPendingShoutouts, deleteShoutouts, getRecentInspirationContents, storeInspirationForDate } from '@/lib/daily-digest';
 
 // BooneGraphics Brand Colors
-const BRAND_RED = '#B91C1C';
-const BRAND_RED_DARK = '#991B1B';
-const BRAND_RED_LIGHT = '#FEE2E2';
+const BRAND_RED = '#A1252B';
+const BRAND_RED_DARK = '#7D1D22';
+const BRAND_RED_LIGHT = '#F9E6E7';
 const BRAND_GRAY = '#5f6360';
 
 // Retriever Logo URL (PNG for email client compatibility)
-const LOGO_URL = 'https://www.booneproofs.net/email/Retriever_Logo_White_smaller.png';
+const LOGO_URL = 'https://www.booneproofs.net/email/RETRIEVER@3x.png';
 
 export type { PerformanceData };
 

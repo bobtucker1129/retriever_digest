@@ -909,7 +909,7 @@ def get_lapsed_accounts(conn, exclude_account_ids=None, earliest_year=None):
     Args:
         conn: Database connection
         exclude_account_ids: Optional set of account IDs to exclude (recently shown)
-        earliest_year: Optional earliest invoice year for accurate date range label
+        earliest_year: Optional earliest invoice year (unused - now calculated per account)
     """
     logger.info("Querying lapsed high-value accounts...")
     
@@ -927,7 +927,8 @@ def get_lapsed_accounts(conn, exclude_account_ids=None, earliest_year=None):
                 ib.account_id,
                 MAX(DATE(ib.pickupdate)) AS last_order_date,
                 SUM(ib.subtotal) AS lifetime_value,
-                COUNT(*) AS order_count
+                COUNT(*) AS order_count,
+                MIN(EXTRACT(YEAR FROM ib.pickupdate))::INTEGER AS first_order_year
             FROM invoicebase ib
             JOIN invoice i ON ib.id = i.id
             WHERE ib.onpendinglist = false
@@ -942,7 +943,8 @@ def get_lapsed_accounts(conn, exclude_account_ids=None, earliest_year=None):
             a.title AS customer_name,
             ast.last_order_date,
             ast.lifetime_value,
-            ast.order_count
+            ast.order_count,
+            ast.first_order_year
         FROM account_stats ast
         LEFT JOIN account a ON ast.account_id = a.id
         WHERE ast.lifetime_value >= 5000
@@ -959,7 +961,8 @@ def get_lapsed_accounts(conn, exclude_account_ids=None, earliest_year=None):
             
             for row in rows:
                 last_order = row[2].strftime('%b %Y') if row[2] else 'Unknown'
-                year_label = f"since {earliest_year}" if earliest_year else "lifetime"
+                first_year = row[5]
+                year_label = f"since {first_year}" if first_year else "lifetime"
                 items.append({
                     'name': row[1] or 'Unknown',
                     'detail': f"Last order: {last_order}",
