@@ -482,8 +482,8 @@ def get_bd_open_invoices(conn):
 
 def get_daily_pm_performance(conn, start_date, end_date):
     """
-    Query new orders (invoices) created in date range grouped by PM.
-    Returns list of PMs with their new orders and estimated revenue for the period.
+    Query new orders (invoices) AND estimates created in date range grouped by PM.
+    Returns list of PMs with their new orders, estimates, and estimated revenue for the period.
     
     Note: Uses ordereddate (when job was created) instead of pickupdate (when completed)
     to show daily activity even on days without closeouts.
@@ -492,7 +492,8 @@ def get_daily_pm_performance(conn, start_date, end_date):
     
     valid_pms = ('Jim', 'Steve', 'Shelley', 'Ellie', 'Ellie Lemire')
     
-    query = """
+    # Query for invoices/orders
+    orders_query = """
         SELECT 
             ib.takenby AS pm_name,
             COUNT(*) AS orders_count,
@@ -506,26 +507,59 @@ def get_daily_pm_performance(conn, start_date, end_date):
           AND COALESCE(ib.voided, false) = false
           AND ib.takenby IN %s
         GROUP BY ib.takenby
-        ORDER BY orders_revenue DESC
     """
     
-    pm_data = []
+    # Query for estimates
+    estimates_query = """
+        SELECT 
+            ib.takenby AS pm_name,
+            COUNT(*) AS estimates_count
+        FROM estimate e
+        JOIN invoicebase ib ON e.id = ib.id
+        WHERE DATE(ib.ordereddate) >= %s
+          AND DATE(ib.ordereddate) <= %s
+          AND ib.isdeleted = false
+          AND COALESCE(ib.voided, false) = false
+          AND ib.takenby IN %s
+        GROUP BY ib.takenby
+    """
+    
+    pm_data = {}
     
     try:
         with conn.cursor() as cur:
-            cur.execute(query, (start_date, end_date, valid_pms))
-            rows = cur.fetchall()
-            
-            for row in rows:
-                pm = {
-                    'pm_name': row[0],
+            # Get orders data
+            cur.execute(orders_query, (start_date, end_date, valid_pms))
+            for row in cur.fetchall():
+                pm_name = row[0]
+                pm_data[pm_name] = {
+                    'pm_name': pm_name,
                     'completed_count': row[1],
-                    'completed_revenue': float(row[2]) if row[2] else 0.0
+                    'completed_revenue': float(row[2]) if row[2] else 0.0,
+                    'estimates_count': 0  # Initialize
                 }
-                pm_data.append(pm)
             
-            logger.info(f"Found daily performance (new orders) for {len(pm_data)} PMs")
-            return pm_data
+            # Get estimates data
+            cur.execute(estimates_query, (start_date, end_date, valid_pms))
+            for row in cur.fetchall():
+                pm_name = row[0]
+                if pm_name in pm_data:
+                    pm_data[pm_name]['estimates_count'] = row[1]
+                else:
+                    # PM has estimates but no orders
+                    pm_data[pm_name] = {
+                        'pm_name': pm_name,
+                        'completed_count': 0,
+                        'completed_revenue': 0.0,
+                        'estimates_count': row[1]
+                    }
+            
+            # Convert to list and sort by revenue
+            pm_list = list(pm_data.values())
+            pm_list.sort(key=lambda x: x['completed_revenue'], reverse=True)
+            
+            logger.info(f"Found daily performance (new orders) for {len(pm_list)} PMs")
+            return pm_list
             
     except Exception as e:
         logger.error(f"Error querying daily PM performance: {e}")
@@ -1476,7 +1510,7 @@ def assemble_export_data(target_date, invoice_data, estimate_data, pm_open_data,
             for bd in bd_daily_data
         ],
         'pmPerformance': [
-            {'name': pm['pm_name'], 'ordersCompleted': pm['completed_count'], 'revenue': pm['completed_revenue']}
+            {'name': pm['pm_name'], 'estimatesCreated': pm['estimates_count'], 'ordersCompleted': pm['completed_count'], 'revenue': pm['completed_revenue']}
             for pm in pm_daily_data
         ],
         # Explicit top performers for AI context

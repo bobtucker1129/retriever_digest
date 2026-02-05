@@ -67,6 +67,7 @@ export interface DigestHighlight {
 
 export interface PerformanceData {
   name: string;
+  estimatesCreated?: number;
   ordersCompleted: number;
   revenue: number;
 }
@@ -829,6 +830,7 @@ export async function generateDailyDigest(
         <thead>
           <tr style="background-color: #f3f4f6;">
             <th style="text-align: left; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">PM</th>
+            <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Estimates</th>
             <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Orders</th>
             <th style="text-align: right; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Revenue</th>
           </tr>
@@ -837,6 +839,7 @@ export async function generateDailyDigest(
           ${pmPerformance.map(pm => `
             <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 6px; font-size: 13px; color: #374151;">${pm.name}</td>
+              <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(pm.estimatesCreated || 0)}</td>
               <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(pm.ordersCompleted)}</td>
               <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151;">${formatCurrency(pm.revenue)}</td>
             </tr>
@@ -937,8 +940,8 @@ const MOCK_DIGEST_DATA: DigestDataPayload = {
     { name: 'Bob Davis', ordersCompleted: 2, revenue: 1500.25 },
   ],
   pmPerformance: [
-    { name: 'Carol Evans', ordersCompleted: 4, revenue: 2800.0 },
-    { name: 'Dan Foster', ordersCompleted: 4, revenue: 1450.75 },
+    { name: 'Carol Evans', estimatesCreated: 6, ordersCompleted: 4, revenue: 2800.0 },
+    { name: 'Dan Foster', estimatesCreated: 3, ordersCompleted: 4, revenue: 1450.75 },
   ],
   aiInsights: [
     {
@@ -1116,6 +1119,7 @@ export async function generateDailyDigestWithMockFallback(
         <thead>
           <tr style="background-color: #f3f4f6;">
             <th style="text-align: left; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">PM</th>
+            <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Estimates</th>
             <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Orders</th>
             <th style="text-align: right; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Revenue</th>
           </tr>
@@ -1124,6 +1128,7 @@ export async function generateDailyDigestWithMockFallback(
           ${pmPerformance.map(pm => `
             <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 6px; font-size: 13px; color: #374151;">${pm.name}</td>
+              <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(pm.estimatesCreated || 0)}</td>
               <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(pm.ordersCompleted)}</td>
               <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151;">${formatCurrency(pm.revenue)}</td>
             </tr>

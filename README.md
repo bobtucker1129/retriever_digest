@@ -266,8 +266,8 @@ Set up Task Scheduler to run the export at **4:00 AM EST daily**:
 **Actions Tab:**
 - Click **New...**
 - Action: Start a program
-- Program/script: `python`
-- Add arguments: `C:\Retriever\export\printsmith_export.py`
+- Program/script: `"C:\Program Files\Python313\python.exe"` (use full path with quotes)
+- Add arguments: `printsmith_export.py --source scheduled`
 - Start in: `C:\Retriever\export`
 
 **Conditions Tab:**
@@ -279,6 +279,8 @@ Set up Task Scheduler to run the export at **4:00 AM EST daily**:
 - Check "If the task fails, restart every: 5 minutes" (up to 3 attempts)
 
 4. Click **OK** and enter your Windows credentials when prompted
+
+**Important:** Use **Administrator** (or the account that has access to `C:\Retriever\.env` and Python) as the "Run as" user. The stored password must match that account—a mismatch (e.g., AD account with Administrator password) will cause the task to fail silently.
 
 ### Example Task Scheduler XML
 
@@ -333,8 +335,8 @@ You can import this XML directly into Task Scheduler:
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>python</Command>
-      <Arguments>C:\Retriever\export\printsmith_export.py</Arguments>
+      <Command>C:\Program Files\Python313\python.exe</Command>
+      <Arguments>printsmith_export.py --source scheduled</Arguments>
       <WorkingDirectory>C:\Retriever\export</WorkingDirectory>
     </Exec>
   </Actions>

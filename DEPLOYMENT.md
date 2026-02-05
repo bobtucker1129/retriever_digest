@@ -361,9 +361,9 @@ You need to create **TWO tasks**: one for daily exports and one for Friday eveni
 - **Trigger:** Daily at **1:00 AM PT** (4:00 AM ET)
 - **Action:**
   - Program: `"C:\Program Files\Python313\python.exe"` (with quotes!)
-  - Arguments: `printsmith_export.py`
+  - Arguments: `printsmith_export.py --source scheduled`
   - Start in: `C:\Retriever\export`
-- **Run as:** User with access to `.env` file and Python installation
+- **Run as:** Administrator (or account with access to `.env` file and Python). Password must match the account.
 - **Status:** ✅ Tested and working (2026-02-01)
 
 #### Task 2: Friday Evening Export ✅
@@ -372,9 +372,9 @@ You need to create **TWO tasks**: one for daily exports and one for Friday eveni
 - **Trigger:** Weekly on **Friday** at **5:00 PM PT** (8:00 PM ET)
 - **Action:**
   - Program: `"C:\Program Files\Python313\python.exe"` (with quotes!)
-  - Arguments: `printsmith_export.py`
+  - Arguments: `printsmith_export.py --source scheduled`
   - Start in: `C:\Retriever\export`
-- **Run as:** User with access to `.env` file and Python installation
+- **Run as:** Administrator (or account with access to `.env` file and Python). Password must match the account.
 - **Status:** ✅ Tested and working (2026-02-01)
 
 **Note:** Path must be quoted because "Program Files" contains a space.

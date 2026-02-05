@@ -11,9 +11,15 @@ If you're in Cursor, just type:
 
 ### Using Command Line
 
-Alternatively, run scripts directly:
+Alternatively, run scripts directly.
 
-**Check if scheduled task worked:**
+**On PrintSmith server (Windows):**
+```cmd
+cd C:\Retriever\export
+"C:\Program Files\Python313\python.exe" check_last_export.py
+```
+
+**On Mac/Linux:**
 ```bash
 python3 export/check_last_export.py
 ```
@@ -24,6 +30,14 @@ This will show:
 - Timestamp to verify it matches your scheduled task time
 
 **Manual Export (when scheduled task fails):**
+
+On PrintSmith server:
+```cmd
+cd C:\Retriever\export
+"C:\Program Files\Python313\python.exe" printsmith_export.py --source manual
+```
+
+On Mac/Linux:
 ```bash
 python3 export/printsmith_export.py --source manual
 ```
@@ -72,21 +86,25 @@ When configuring the scheduled task on the PrintSmith server:
 
 **Program/Script:**
 ```
-C:\Python39\python.exe
+"C:\Program Files\Python313\python.exe"
 ```
+(Quotes required because of the space in "Program Files".)
 
 **Arguments:**
 ```
-/path/to/retriever-daily-digest/export/printsmith_export.py --source scheduled
+printsmith_export.py --source scheduled
 ```
 
 **Start in:**
 ```
-/path/to/retriever-daily-digest/export
+C:\Retriever\export
 ```
 
+**Run as:** Administrator (or account with access to `C:\Retriever\.env`). The stored password must match the account.
+
 **Schedule:**
-- Daily at 6:00 AM (or whatever time you prefer)
+- Daily at 1:00 AM PT (4:00 AM ET) for daily export
+- Friday at 5:00 PM PT (8:00 PM ET) for Friday evening export
 - Before the digest email is sent
 
 ## Testing Tomorrow
