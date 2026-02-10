@@ -399,7 +399,7 @@ You need to create **TWO tasks**: one for daily exports and one for Friday eveni
 
 ## Phase 4: End-to-End Testing ⏳ IN PROGRESS
 
-### Day 1: Initial Test
+### Day 1: Initial Test ✅ COMPLETE
 
 - [x] Run export script manually on PrintSmith server - Tested 2026-02-01
 - [x] Verify data appears in Render database (check DigestData table)
@@ -410,19 +410,51 @@ You need to create **TWO tasks**: one for daily exports and one for Friday eveni
 - [x] Confirm logo is visible (RETRIEVER@3x.png on brand red header #A1252B) - Updated 2026-02-03
 - [x] Check professional styling (tight spacing, clean fonts)
 
-### Day 2-3: Cron Test
+### Day 2-3: Cron Test ✅ COMPLETE
 
-- [ ] Let Task Scheduler run export at 4:00 AM EST
-- [ ] Let Render cron trigger daily digest at 4:00 AM PST (7:00 AM EST)
-- [ ] Verify email arrives in recipient inboxes
-- [ ] Check all sections: highlights, PM/BD tables, progress bars, quote/joke
+- [x] Let Task Scheduler run export automatically - Verified 2026-02-06 at 8:00 PM EST
+- [x] Export tracking system operational (`/CheckExport` command)
+- [x] Source tracking working (manual vs scheduled exports)
+- [x] Render cron triggering daily digest at 7:00 AM EST
+- [x] Emails arriving in recipient inboxes
+- [x] All sections rendering: highlights, PM/BD tables (with Estimates), progress bars
 
-### Week 1: Full Cycle
+### Week 1: Full Cycle ⏳ IN PROGRESS
 
-- [ ] Monitor daily digests all week
-- [ ] Verify Friday weekly digest at 6:00 PM PST
+- [x] Monitor daily digests all week
+- [x] PM Performance enhanced with Estimates column (deployed 2026-02-06)
+- [x] **Verify Monday digest (Feb 10th)** - Weekend aggregation confirmed (Fri+Sat+Sun)
+  - Daily scheduled export ran at 1:00 AM PT (9:00 AM UTC) on Feb 10 - SCHEDULED source confirmed
+  - Manual weekend export tested Feb 9 - 25 invoices, $34,123.81 revenue
+- [ ] Verify Friday weekly digest at 6:00 PM PST (9:00 PM EST)
 - [ ] Check week-over-week comparisons are accurate
-- [ ] Add all real recipients (start with small group)
+
+### Status Notes (2026-02-10)
+
+**PM Estimates Bug Fix (Session 24):**
+- PM Performance table was showing 0 estimates for all PMs despite summary showing 15
+- Root cause: estimates sub-query in `get_daily_pm_performance()` filtered by `takenby IN valid_pms` which was dropping results
+- Fix: removed `takenby` filter from estimates query; all estimates now counted by actual PM name
+- Added diagnostic logging for `takenby` values on estimates
+- **Action needed:** Copy updated `printsmith_export.py` to `C:\Retriever\export\` for scheduled exports
+
+**Scheduled Task Fix (Session 23):**
+- Daily task had **Logon Mode: "Interactive only"** which prevented it from running when nobody was logged in
+- Fixed to **"Run whether user is logged on or not"** (same as Friday task)
+- Script at `C:\Retriever\export\` was outdated - synced with repo version
+- Both tasks now include `--source scheduled` in arguments
+- Daily export confirmed working automatically: Feb 10 at 1:00 AM PT
+- Friday evening export confirmed working: Feb 6 at 5:00 PM PT
+
+**Monday Digest Logic Confirmed:**
+- Monday 1:00 AM PT: Export runs and captures Fri+Sat+Sun data
+- Monday 7:00 AM ET: Digest email sends with weekend aggregation
+- This is the first time Friday's data appears (not shown on Friday)
+
+**Cursor Commands Available:**
+- `/CheckExport` - Verify export status and timing
+- `/ManualExport` - Run manual export when needed
+- `/ExportHelp` - Troubleshooting and documentation
 
 ---
 

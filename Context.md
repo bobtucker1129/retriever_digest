@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-02-03  
-> **Current Phase:** Phase 3 Complete, Phase 4 Ready  
-> **Status:** PrintSmith server setup complete - scheduled tasks running - visual branding updated
+> **Last Updated:** 2026-02-10  
+> **Current Phase:** Phase 4 In Progress  
+> **Status:** System live - PM Performance estimates bug fixed - manual export confirmed working
 
 ---
 
@@ -59,10 +59,14 @@
   - **Friday Evening Export**: 5:00 PM PT (8:00 PM ET) Fridays
 - Both tasks tested and verified working (2026-02-01)
 
-### Phase 4: End-to-End Testing ⏳ NEXT
-- Monitor scheduled tasks running automatically
-- Verify daily digest emails arrive at 7:00 AM ET
-- Verify weekly digest email arrives Friday 9:00 PM ET
+### Phase 4: End-to-End Testing ⏳ IN PROGRESS
+- Both scheduled tasks verified working (Daily + Friday Evening)
+- Daily export confirmed arriving at 1:00 AM PT / 4:00 AM ET (Feb 10)
+- Friday evening export confirmed arriving at 5:00 PM PT / 8:00 PM ET (Feb 6)
+- Daily digest emails arriving at 7:00 AM ET
+- Export tracking system operational
+- PM Performance enhanced with Estimates column
+- Monday weekend aggregation tested successfully (Feb 9 manual, Feb 10 scheduled)
 
 ### Phase 5: Go Live 🔲 PENDING
 
@@ -285,6 +289,97 @@ The same export script handles all scenarios - differences are in timing and how
 ---
 
 ## Session History
+
+### 2026-02-10 (Session 24): PM Performance Estimates Bug Fix
+- **Problem:** PM Performance section showed 0 estimates for all PMs, even though summary banner correctly showed 15 estimates created
+- **Root Cause:** In `get_daily_pm_performance()`, the estimates sub-query filtered by `ib.takenby IN valid_pms`. While the names matched, the `GROUP BY` alias or parameter passing was causing zero results. The total estimate count (`get_estimates_created()`) had no such filter and worked correctly.
+- **Fix Applied:**
+  - Removed `AND ib.takenby IN %s` filter from the estimates sub-query in `get_daily_pm_performance()`
+  - All estimates now counted and grouped by actual `takenby` value (no name filter)
+  - Added `COALESCE(NULLIF(TRIM(ib.takenby), ''), 'Unassigned')` to handle NULL/empty values
+  - Orders query still correctly filters by `valid_pms`
+- **Diagnostic Logging Added:** New log line in `get_estimates_created()` shows distinct `takenby` values found on estimates
+  - Feb 10 output confirmed: `{'Shelley', 'Jim', 'Ellie Lemire', 'Steve'}`
+- **Manual Export Verified:** Re-exported Feb 9 data after fix
+  - 15 estimates, 23 new jobs, 9 invoices ($5,118.54 revenue)
+  - PM daily performance now shows 4 PMs (previously showed PMs but with 0 estimates)
+- **AGENTS.md Created:** Added standalone repo declaration to prevent Cursor from inheriting outer workspace agent instructions
+- **Files Modified:**
+  - `export/printsmith_export.py` - Estimates query fix + diagnostic logging
+  - `AGENTS.md` - New file (standalone repo declaration)
+
+### 2026-02-10 (Session 23): Scheduled Export Troubleshooting & Fix
+- **Problem:** Daily scheduled task was running (Task Scheduler showed success) but data wasn't reaching Render
+- **Root Causes Found (Two Issues):**
+  1. **Outdated script at `C:\Retriever\export\`** — The deployed copy was older than the repo version and lacked `--source` support. The old script also lacked recent query changes.
+  2. **Daily task Logon Mode set to "Interactive only"** — Task only ran when Administrator was logged into the server. At 1:00 AM nobody is logged in, so it silently skipped. Friday task was correctly set to "Interactive/Background" which is why it worked.
+- **Fixes Applied:**
+  - Copied updated `printsmith_export.py` and `check_last_export.py` from repo to `C:\Retriever\export\`
+  - Reinstalled Python dependencies (`psycopg2-binary`, `requests`, `python-dotenv`) for Python 3.13
+  - Updated both Task Scheduler tasks: Arguments changed to `printsmith_export.py --source scheduled`
+  - Fixed daily task Logon Mode: Changed from "Interactive only" to "Run whether user is logged on or not"
+  - Re-entered Administrator credentials on both tasks to ensure password matches account
+- **Verification:**
+  - Feb 7: Friday evening SCHEDULED export confirmed at 5:00 PM PT
+  - Feb 10: Daily SCHEDULED export confirmed at 1:00 AM PT (first fully automatic daily)
+  - Both tasks show Last Result: 0 (success)
+- **Documentation Updated:**
+  - `README.md` — Task Scheduler instructions updated with correct Python path, `--source scheduled`, and credential guidance
+  - `DEPLOYMENT.md` — Task arguments and run-as user updated
+  - `export/SCHEDULING.md` — Windows paths and commands corrected
+- **Key Lesson:** When setting up Windows Task Scheduler for unattended execution, always select "Run whether user is logged on or not" (not "Run only when user is logged on"). The Friday task had this correct but the daily task did not.
+
+### 2026-02-06 (Session 22): Export Tracking System & PM Estimates Column
+- **Export Tracking Tools:** Created comprehensive system to monitor scheduled task status
+  - Built `export/check_last_export.py` script to query when exports were received
+  - Added `--source` flag to `printsmith_export.py` to mark manual vs scheduled exports
+  - Added `--date` flag for overriding export date (useful for testing)
+  - Enhanced `/api/export/recent` to return timestamps and export source
+  - Times displayed in EST/EDT timezone automatically
+- **Cursor Commands Created:** Quick-access commands for export management
+  - `/CheckExport` - Check when last export was received and its source
+  - `/ManualExport` - Run manual export with guided prompts
+  - `/ExportHelp` - Comprehensive help and troubleshooting guide
+  - Commands documented in `.cursor/commands/` with README
+- **Documentation:** Created export system guides
+  - `export/README.md` - Script usage and configuration
+  - `export/SCHEDULING.md` - Scheduling guide and troubleshooting
+  - `.cursor/commands/README.md` - Commands overview
+- **Scheduled Task Verification:** Confirmed PrintSmith scheduled task is working
+  - Export detected on Feb 6th at 8:00 PM EST with source "SCHEDULED TASK"
+  - Runs later than expected (8 PM vs 1 AM) but successfully automated
+  - System now tracks manual vs scheduled exports for easy monitoring
+- **PM Performance Enhancement:** Added Estimates column to PM Performance table
+  - Modified `get_daily_pm_performance()` to query estimates created by each PM
+  - Updated PM Performance display: PM | Estimates | Orders | Revenue
+  - Better visibility into PM activity (both estimates and orders in one view)
+  - Handles edge cases (PMs with estimates but no orders)
+- **Monday Digest Logic Clarified:** Documented weekend data aggregation
+  - Monday exports capture Friday + Saturday + Sunday data combined
+  - Monday digest shows Fri-Sun as first-time presentation of that data
+  - Export runs Monday 1:00 AM EST (not Sunday night)
+  - First live Monday digest scheduled for Feb 10th
+- **Database Tunneling Research:** Evaluated options for exposing PostgreSQL safely
+  - Researched NGROK (requires paid plan for stable URLs, $8-10/month)
+  - Researched Cloudflare Tunnel (free, more secure, recommended for production)
+  - Researched Tailscale (won't work for Render containers)
+  - Recommended keeping manual exports for now, scheduled task appears fixed
+- **Files Created:**
+  - `export/check_last_export.py` - Export status checking script
+  - `export/README.md` - Export script documentation
+  - `export/SCHEDULING.md` - Scheduling guide
+  - `.cursor/commands/CheckExport.md` - Check export command
+  - `.cursor/commands/ManualExport.md` - Manual export command
+  - `.cursor/commands/ExportHelp.md` - Export help command
+  - `.cursor/commands/README.md` - Commands overview
+- **Files Modified:**
+  - `export/printsmith_export.py` - Added source/date tracking, PM estimates query
+  - `src/app/api/export/recent/route.ts` - Added timestamp and source to response
+  - `src/lib/daily-digest.ts` - Added Estimates column to PM Performance table
+  - `README.md` - Added Cursor commands section
+  - `.env.example` - Added RENDER_API_URL
+- **Deployed:** Both feature sets committed and pushed (commits f791aab, ddeec89)
+
 ### 2026-02-03 (Session 21): Visual Branding Update & Lapsed Accounts Per-Account Years
 - **Lapsed Accounts Enhancement:** Changed from global earliest year to per-account first order year
   - Modified `get_lapsed_accounts()` query to calculate `MIN(EXTRACT(YEAR FROM ib.pickupdate))` per account
@@ -640,54 +735,36 @@ The same export script handles all scenarios - differences are in timing and how
 
 ## Next Steps
 
-### Revenue & Insights ✅ COMPLETE
-- ✅ Revenue now uses `salesbase.totalsales` (excludes postage/shipping)
-- ✅ YTD/MTD/Daily revenue matches PrintSmith "Total Sales" exactly
-- ✅ Program accounts (Strategic Healthcare, CenCal) excluded from highlights/insights
-- ✅ Highlights now show actionable non-program orders with account names
-- ✅ AI insights focus on business development opportunities
+### Immediate Priorities
 
-### Fresh Insights System ✅ COMPLETE
-- ✅ Account names displayed in bold before job descriptions
-- ✅ Day-of-week rotation for insight types (2-3 per day)
-- ✅ Recently shown accounts excluded for 14 days
-- ✅ AI context includes recent headlines to avoid repetition
-- ✅ Queries prioritize newly-eligible items
+1. **Verify PM Estimates Fix in Next Digest** - Re-exported data with fix; next daily digest should show estimates per PM correctly
+   - Check that PM Performance table has non-zero estimate counts
+   - Confirm total matches the summary banner number
 
-### Remaining Tasks
-1. ✅ **Commit changes** - All enhancements committed and pushed
-2. ✅ **Deploy to Render** - Auto-deployed via GitHub push
-3. ✅ **Email domain verified** - Resend configured with boonegraphics.net via Cloudflare
-4. ✅ **Logo accessible** - https://www.booneproofs.net/email/Retriever_Logo_White_smaller.png (optimized 27KB for Gmail)
-5. ✅ **Update Render EMAIL_FROM** - Changed to `Retriever Digest <digest@boonegraphics.net>` (no quotes)
-6. ✅ **Test production email** - Tested daily and weekly from admin portal
-7. ✅ **Fix SPF record** - Added `include:amazonses.com` to main domain SPF in Cloudflare (verified 2026-02-01)
-8. ✅ **Apply new migrations** - TestimonialDisplay migration deployed (shares same DB as local)
-9. ✅ **Fix preview build error** - recipientFirstName and TypeScript errors resolved
-10. ✅ **Set up Render cron jobs** - Daily (7am ET Mon-Fri) and Weekly (9pm ET Friday) configured
-11. ✅ **Phase 3: PrintSmith Server Setup** - Python, export script, scheduled tasks all working
-12. **Phase 4: End-to-end testing** - Monitor automated exports and digest emails
-13. **Phase 5: Go live** - Final sign-off and communication to team
+2. **Verify Friday Weekly Digest (Feb 13th)** - Still untested in full cycle
+   - Check week-over-week comparisons are accurate
+   - Confirm Friday evening export feeds into weekly digest
 
-### LoyaltyLoop Integration ✅ COMPLETE
-- ✅ API client created (`src/lib/loyaltyloop.ts`)
-- ✅ Customer Feedback section added to daily digest
-- ✅ Prioritizes new testimonials (last 30 days)
-- ✅ Deployed to Render with `LOYALTYLOOP_API_KEY` configured
-- **Action Required:** Publish recent testimonials in LoyaltyLoop dashboard (only published ones appear in API)
+3. **Deploy Updated Export Script to PrintSmith Server**
+   - Copy updated `printsmith_export.py` to `C:\Retriever\export\` (includes estimates fix + diagnostic logging)
+   - This is needed so scheduled exports also benefit from the fix
 
-### Team Shoutouts Feature ✅ COMPLETE
-- ✅ Public submission form at `/shoutout` (no login required)
-- ✅ Validates sender against recipients list
-- ✅ Admin Shoutouts tab to view/delete pending messages
-- ✅ Integrated into daily and weekly digests
-- ✅ Auto-cleanup after digest sends
-- **Share URL:** `https://retriever-digest.onrender.com/shoutout`
+### Completed This Phase
 
-### Optional Improvements
+- ✅ Export tracking system operational (`/CheckExport`, `/ManualExport`)
+- ✅ PM Performance enhanced with Estimates column
+- ✅ PM Performance estimates bug fixed (was showing 0 for all PMs)
+- ✅ Scheduled task verified working (Daily + Friday Evening)
+- ✅ Source tracking distinguishes manual vs scheduled exports
+- ✅ Cursor commands provide easy access to export tools
+- ✅ Monday weekend aggregation verified (Feb 10)
+
+### Optional Future Enhancements
+- Add Estimates column to BD Performance table (matching PM table)
 - Add more program accounts to exclusion list as needed
-- Weekly digest could use `generateRichMotivationalSummary()` for more specific content
+- Enhance weekly digest with `generateRichMotivationalSummary()`
 - Add testimonials to weekly digest (currently daily only)
+- Consider adding BDs to "New Customer Estimates" display
 
 ---
 

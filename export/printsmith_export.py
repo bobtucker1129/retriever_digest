@@ -291,7 +291,9 @@ def get_estimates_created(conn, start_date, end_date):
                 estimates.append(estimate)
             
             estimate_count = len(estimates)
+            takenby_values = set(e['takenby'] for e in estimates)
             logger.info(f"Found {estimate_count} estimates created")
+            logger.info(f"Distinct takenby values on estimates: {takenby_values}")
             
             return {
                 'estimate_count': estimate_count,
@@ -509,10 +511,11 @@ def get_daily_pm_performance(conn, start_date, end_date):
         GROUP BY ib.takenby
     """
     
-    # Query for estimates
+    # Query for estimates - no takenby filter so all estimates are counted
+    # and attributed to their actual PM (avoids mismatch with total estimate count)
     estimates_query = """
         SELECT 
-            ib.takenby AS pm_name,
+            COALESCE(NULLIF(TRIM(ib.takenby), ''), 'Unassigned') AS pm_name,
             COUNT(*) AS estimates_count
         FROM estimate e
         JOIN invoicebase ib ON e.id = ib.id
@@ -520,15 +523,14 @@ def get_daily_pm_performance(conn, start_date, end_date):
           AND DATE(ib.ordereddate) <= %s
           AND ib.isdeleted = false
           AND COALESCE(ib.voided, false) = false
-          AND ib.takenby IN %s
-        GROUP BY ib.takenby
+        GROUP BY pm_name
     """
     
     pm_data = {}
     
     try:
         with conn.cursor() as cur:
-            # Get orders data
+            # Get orders data (still filtered by valid PMs)
             cur.execute(orders_query, (start_date, end_date, valid_pms))
             for row in cur.fetchall():
                 pm_name = row[0]
@@ -539,14 +541,14 @@ def get_daily_pm_performance(conn, start_date, end_date):
                     'estimates_count': 0  # Initialize
                 }
             
-            # Get estimates data
-            cur.execute(estimates_query, (start_date, end_date, valid_pms))
+            # Get estimates data (all estimates, no PM filter)
+            cur.execute(estimates_query, (start_date, end_date))
             for row in cur.fetchall():
                 pm_name = row[0]
                 if pm_name in pm_data:
                     pm_data[pm_name]['estimates_count'] = row[1]
                 else:
-                    # PM has estimates but no orders
+                    # PM has estimates but no orders (or not in valid_pms list)
                     pm_data[pm_name] = {
                         'pm_name': pm_name,
                         'completed_count': 0,

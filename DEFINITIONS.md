@@ -1,6 +1,6 @@
 # Retriever Daily Digest - Metric Definitions
 
-> **Last Updated:** 2026-02-02
+> **Last Updated:** 2026-02-10
 
 This document defines all metrics and terminology used in the Retriever Daily Digest emails, organized by section.
 
@@ -47,17 +47,20 @@ Performance metrics for Project Managers.
 | Column | Definition |
 |--------|------------|
 | **PM** | Project Manager who took/entered the order (from `invoicebase.takenby`) |
+| **Estimates** | Count of estimates created (`ordereddate`) that day by this PM. **Not filtered by valid PMs** -- all estimates are counted and attributed to their actual `takenby` value. NULL/empty values show as "Unassigned". |
 | **Orders** | Count of jobs created (`ordereddate`) that day by this PM |
 | **Revenue** | Sum of `subtotal` for those jobs |
 
-### Valid PMs
+### Valid PMs (for Orders/Revenue)
 
-Only these names are included in the PM table:
+Only these names are included in the Orders and Revenue columns:
 - Jim
 - Steve
 - Shelley
 - Ellie
 - Ellie Lemire
+
+**Note:** The Estimates column includes all PMs (not just valid PMs) to ensure the per-PM estimate total matches the summary banner count.
 
 ---
 
