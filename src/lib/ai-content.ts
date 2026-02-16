@@ -366,11 +366,12 @@ function getRandomMotivationalFallback(): MotivationalSummary {
   return FALLBACK_MOTIVATIONAL[index];
 }
 
-function applyRecipientGreeting(message: string, recipientFirstName?: string): string {
+function applyRecipientGreeting(message: string, recipientFirstName?: string, isWeekly?: boolean): string {
   if (!recipientFirstName) return message;
   const trimmed = message.trim();
-  if (/^good morning\b/i.test(trimmed)) return message;
-  return `Good morning ${recipientFirstName}. ${trimmed}`;
+  if (/^good (morning|evening)\b/i.test(trimmed)) return message;
+  const greeting = isWeekly ? 'Good evening' : 'Good morning';
+  return `${greeting} ${recipientFirstName}. ${trimmed}`;
 }
 
 function formatCurrencyForAI(amount: number): string {
@@ -392,7 +393,7 @@ export async function generateMotivationalSummary(metrics: DigestMetricsForAI): 
     const fallback = getRandomMotivationalFallback();
     return {
       headline: fallback.headline,
-      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName),
+      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName, metrics.isWeekly),
     };
   }
 
@@ -411,8 +412,9 @@ export async function generateMotivationalSummary(metrics: DigestMetricsForAI): 
       contextInfo += ` Week-over-week: revenue ${revenueDirection} ${Math.abs(metrics.weekOverWeekRevenueChange)}%, orders ${ordersDirection} ${Math.abs(metrics.weekOverWeekOrdersChange ?? 0)}%.`;
     }
     
+    const greetingWord = metrics.isWeekly ? 'Good evening' : 'Good morning';
     const greetingInstruction = metrics.recipientFirstName
-      ? `Start the message with: "Good morning ${metrics.recipientFirstName}."`
+      ? `Start the message with: "${greetingWord} ${metrics.recipientFirstName}."`
       : '';
 
     const prompt = `You are writing a brief motivational summary for BooneGraphics, a professional printing company serving the medical industry. This will appear at the top of a ${periodType}ly digest email to the team.
@@ -454,7 +456,7 @@ Return your response in this exact JSON format:
       const fallback = getRandomMotivationalFallback();
       return {
         headline: fallback.headline,
-        message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName),
+        message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName, metrics.isWeekly),
       };
     }
 
@@ -480,7 +482,7 @@ Return your response in this exact JSON format:
         console.log('[AI Content] Successfully generated:', parsed.headline);
         return {
           headline: parsed.headline,
-          message: applyRecipientGreeting(parsed.message, metrics.recipientFirstName),
+          message: applyRecipientGreeting(parsed.message, metrics.recipientFirstName, metrics.isWeekly),
         };
       }
     } catch (parseError) {
@@ -491,14 +493,14 @@ Return your response in this exact JSON format:
     const fallback = getRandomMotivationalFallback();
     return {
       headline: fallback.headline,
-      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName),
+      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName, metrics.isWeekly),
     };
   } catch (error) {
     console.error('[AI Content] Failed to generate motivational summary:', error);
     const fallback = getRandomMotivationalFallback();
     return {
       headline: fallback.headline,
-      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName),
+      message: applyRecipientGreeting(fallback.message, metrics.recipientFirstName, metrics.isWeekly),
     };
   }
 }
@@ -650,7 +652,7 @@ export async function generateRichMotivationalSummary(ctx: RichAIContext): Promi
     const fallback = getRandomMotivationalFallback();
     return {
       headline: fallback.headline,
-      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName),
+      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName, ctx.isWeekly),
     };
   }
 
@@ -665,8 +667,9 @@ export async function generateRichMotivationalSummary(ctx: RichAIContext): Promi
     const recentDigestsSection = buildRecentDigestsSection(ctx);
     
     const periodType = ctx.isWeekly ? 'weekly' : 'daily';
+    const greetingWord = ctx.isWeekly ? 'Good evening' : 'Good morning';
     const greetingInstruction = ctx.recipientFirstName
-      ? `Start the message with: "Good morning ${ctx.recipientFirstName}."`
+      ? `Start the message with: "${greetingWord} ${ctx.recipientFirstName}."`
       : '';
     
     const prompt = `You are writing a brief motivational summary for BooneGraphics, a professional printing company serving the medical industry. This appears at the TOP of a ${periodType} sales digest email.
@@ -746,7 +749,7 @@ Return your response in this exact JSON format:
         console.log('[AI Content] Rich summary generated:', parsed.headline);
         return {
           headline: parsed.headline,
-          message: applyRecipientGreeting(parsed.message, ctx.recipientFirstName),
+          message: applyRecipientGreeting(parsed.message, ctx.recipientFirstName, ctx.isWeekly),
         };
       }
     } catch (parseError) {
@@ -756,14 +759,14 @@ Return your response in this exact JSON format:
     const fallback = getRandomMotivationalFallback();
     return {
       headline: fallback.headline,
-      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName),
+      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName, ctx.isWeekly),
     };
   } catch (error) {
     console.error('[AI Content] Failed to generate rich motivational summary:', error);
     const fallback = getRandomMotivationalFallback();
     return {
       headline: fallback.headline,
-      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName),
+      message: applyRecipientGreeting(fallback.message, ctx.recipientFirstName, ctx.isWeekly),
     };
   }
 }

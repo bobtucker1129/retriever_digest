@@ -105,11 +105,13 @@ function aggregatePerformanceData(
       for (const item of performanceData) {
         const existing = performanceMap.get(item.name);
         if (existing) {
+          existing.estimatesCreated = (existing.estimatesCreated || 0) + (item.estimatesCreated || 0);
           existing.ordersCompleted += item.ordersCompleted || 0;
           existing.revenue += item.revenue || 0;
         } else {
           performanceMap.set(item.name, {
             name: item.name,
+            estimatesCreated: item.estimatesCreated || 0,
             ordersCompleted: item.ordersCompleted || 0,
             revenue: item.revenue || 0,
           });
@@ -512,6 +514,7 @@ function generateWeeklyDigestHTML(
         <thead>
           <tr style="background-color: #f3f4f6;">
             <th style="text-align: left; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">PM</th>
+            <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Estimates</th>
             <th style="text-align: center; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Orders</th>
             <th style="text-align: right; padding: 6px; font-size: 12px; font-weight: 500; color: #6b7280;">Revenue</th>
           </tr>
@@ -520,6 +523,7 @@ function generateWeeklyDigestHTML(
           ${data.pmWeeklyPerformance.map(pm => `
             <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 6px; font-size: 13px; color: #374151;">${pm.name}</td>
+              <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(pm.estimatesCreated || 0)}</td>
               <td style="padding: 6px; text-align: center; font-size: 13px; color: #374151;">${formatNumber(pm.ordersCompleted)}</td>
               <td style="padding: 6px; text-align: right; font-size: 13px; color: #374151;">${formatCurrency(pm.revenue)}</td>
             </tr>
@@ -753,9 +757,9 @@ const MOCK_WEEKLY_DATA: WeeklyDigestData = {
   lastWeek: { revenue: 112000, salesCount: 42, estimatesCreated: 25, newCustomers: 5 },
   weekOverWeekChange: { revenueChange: 12, salesCountChange: 7, estimatesCreatedChange: 12, newCustomersChange: 40 },
   pmWeeklyPerformance: [
-    { name: 'Jim', ordersCompleted: 18, revenue: 45000 },
-    { name: 'Steve', ordersCompleted: 15, revenue: 38000 },
-    { name: 'Shelley', ordersCompleted: 12, revenue: 28000 },
+    { name: 'Jim', estimatesCreated: 14, ordersCompleted: 18, revenue: 45000 },
+    { name: 'Steve', estimatesCreated: 11, ordersCompleted: 15, revenue: 38000 },
+    { name: 'Shelley', estimatesCreated: 9, ordersCompleted: 12, revenue: 28000 },
   ],
   bdWeeklyPerformance: [
     { name: 'Paige Chamberlain', ordersCompleted: 12, revenue: 35000 },

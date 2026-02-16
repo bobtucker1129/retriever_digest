@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-02-10  
+> **Last Updated:** 2026-02-15  
 > **Current Phase:** Phase 4 In Progress  
-> **Status:** System live - PM Performance estimates bug fixed - manual export confirmed working
+> **Status:** System live - Weekly digest greeting + PM estimates column tweaks applied
 
 ---
 
@@ -289,6 +289,24 @@ The same export script handles all scenarios - differences are in timing and how
 ---
 
 ## Session History
+
+### 2026-02-15 (Session 25): Weekly Digest Tweaks - Greeting & PM Estimates
+- **Tweak 1: Evening Greeting for Weekly Digest**
+  - Weekly digest sends at 9 PM EST on Fridays, but greeted recipients with "Good morning"
+  - Updated `applyRecipientGreeting()` in `ai-content.ts` to accept `isWeekly` parameter
+  - When `isWeekly` is true, greeting now says "Good evening" instead of "Good morning"
+  - Updated both AI prompt builders (`generateMotivationalSummary`, `generateRichMotivationalSummary`) to instruct Claude to use "Good evening" for weekly
+  - Updated regex guard to check for both `^good morning` and `^good evening` to prevent double-prepending
+  - All 9 call sites of `applyRecipientGreeting` now pass the `isWeekly` flag
+- **Tweak 2: Estimates Column in Weekly PM Stats**
+  - Weekly PM Stats table only showed PM | Orders | Revenue, unlike daily which includes Estimates
+  - Updated `aggregatePerformanceData()` in `weekly-digest.ts` to sum `estimatesCreated` across daily records
+  - Added Estimates column to weekly PM Stats HTML table: PM | Estimates | Orders | Revenue
+  - Updated mock data with `estimatesCreated` values for preview consistency
+- **Files Modified:**
+  - `src/lib/ai-content.ts` - Greeting logic for daily vs weekly
+  - `src/lib/weekly-digest.ts` - PM estimates aggregation, table column, mock data
+- **Status:** Changes verified with TypeScript compilation (zero errors), not yet committed or deployed
 
 ### 2026-02-10 (Session 24): PM Performance Estimates Bug Fix
 - **Problem:** PM Performance section showed 0 estimates for all PMs, even though summary banner correctly showed 15 estimates created
@@ -737,15 +755,19 @@ The same export script handles all scenarios - differences are in timing and how
 
 ### Immediate Priorities
 
-1. **Verify PM Estimates Fix in Next Digest** - Re-exported data with fix; next daily digest should show estimates per PM correctly
-   - Check that PM Performance table has non-zero estimate counts
-   - Confirm total matches the summary banner number
+1. **Commit and Deploy Weekly Digest Tweaks** - Two changes ready in `ai-content.ts` and `weekly-digest.ts`
+   - Commit, push, and let Render redeploy
+   - Will take effect on next Friday weekly digest (Feb 20)
 
-2. **Verify Friday Weekly Digest (Feb 13th)** - Still untested in full cycle
+2. **Verify PM Estimates Fix in Recent Digests** - Re-exported data with fix on Feb 10
+   - Check that daily PM Performance tables from Feb 11-13 had non-zero estimate counts
+   - Confirm totals match summary banner numbers
+
+3. **Verify Friday Weekly Digest (Feb 13th)** - Should have run; check results
    - Check week-over-week comparisons are accurate
    - Confirm Friday evening export feeds into weekly digest
 
-3. **Deploy Updated Export Script to PrintSmith Server**
+4. **Deploy Updated Export Script to PrintSmith Server**
    - Copy updated `printsmith_export.py` to `C:\Retriever\export\` (includes estimates fix + diagnostic logging)
    - This is needed so scheduled exports also benefit from the fix
 
