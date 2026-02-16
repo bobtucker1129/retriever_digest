@@ -306,7 +306,20 @@ The same export script handles all scenarios - differences are in timing and how
 - **Files Modified:**
   - `src/lib/ai-content.ts` - Greeting logic for daily vs weekly
   - `src/lib/weekly-digest.ts` - PM estimates aggregation, table column, mock data
-- **Status:** Changes verified with TypeScript compilation (zero errors), not yet committed or deployed
+- **Committed & Deployed:** Commit `44d2ff6`, pushed to origin, Render auto-deployed
+- **Manual Export Run:** Exported Saturday Feb 14 data ($0 as expected -- shop closed weekends)
+- **Weekend Preview Investigation:** Previewing daily digest from admin panel showed $0
+  - Root cause: `getLatestDigestData()` returns most recent DB record, which on weekends is $0 Saturday/Sunday data
+  - NOT caused by our code changes -- daily-digest.ts was not modified at all
+  - This is a pre-existing limitation only visible when testing on weekends
+  - Production daily emails (Mon-Fri 7 AM) are unaffected -- latest record at that time always has real data
+- **Export API Upsert Discovery:** `/api/export` uses `prisma.digestData.upsert({ where: { exportDate: today } })`
+  - Records are keyed by UTC date, one per day
+  - Monday 4 AM export will overwrite our manual $0 record (same UTC date: Feb 16) with real Fri+Sat+Sun data
+  - Confirmed Monday digest will self-correct automatically
+- **Scheduled Exports Verified Running:** All 7 days of exports confirmed in DB (Feb 9-15)
+  - Scheduled tasks running reliably every day at 4 AM EST
+  - Friday evening export also confirmed (Feb 13 at 8 PM EST)
 
 ### 2026-02-10 (Session 24): PM Performance Estimates Bug Fix
 - **Problem:** PM Performance section showed 0 estimates for all PMs, even though summary banner correctly showed 15 estimates created
@@ -755,21 +768,23 @@ The same export script handles all scenarios - differences are in timing and how
 
 ### Immediate Priorities
 
-1. **Commit and Deploy Weekly Digest Tweaks** - Two changes ready in `ai-content.ts` and `weekly-digest.ts`
-   - Commit, push, and let Render redeploy
-   - Will take effect on next Friday weekly digest (Feb 20)
+1. **Verify Monday Daily Digest (Feb 16)** - Should arrive at 7 AM EST with Fri+Sat+Sun data
+   - Confirm the 4 AM export overwrites $0 record with real weekend-aggregated data
+   - Check PM Performance table shows estimates correctly
 
-2. **Verify PM Estimates Fix in Recent Digests** - Re-exported data with fix on Feb 10
-   - Check that daily PM Performance tables from Feb 11-13 had non-zero estimate counts
-   - Confirm totals match summary banner numbers
-
-3. **Verify Friday Weekly Digest (Feb 13th)** - Should have run; check results
+2. **Verify Friday Weekly Digest (Feb 20)** - First weekly digest with our changes
+   - Should greet with "Good evening" instead of "Good morning"
+   - PM Weekly Stats should show Estimates column (PM | Estimates | Orders | Revenue)
    - Check week-over-week comparisons are accurate
-   - Confirm Friday evening export feeds into weekly digest
 
-4. **Deploy Updated Export Script to PrintSmith Server**
+3. **Deploy Updated Export Script to PrintSmith Server**
    - Copy updated `printsmith_export.py` to `C:\Retriever\export\` (includes estimates fix + diagnostic logging)
    - This is needed so scheduled exports also benefit from the fix
+
+4. **(Optional) Improve Weekend Preview Behavior**
+   - `getLatestDigestData()` shows $0 on weekends since latest record is weekend data
+   - Could modify to skip zero-activity records and show last business day for previews
+   - Low priority: only affects admin previews, not production emails
 
 ### Completed This Phase
 
