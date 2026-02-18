@@ -7,6 +7,7 @@ import {
   generateMotivationalSummary,
   generateRichMotivationalSummary, 
   generateNewCustomerShoutout,
+  generateBirthdayShoutout,
   type AIContent, 
   type MotivationalSummary, 
   type DigestMetricsForAI,
@@ -330,6 +331,68 @@ function renderShoutoutsSection(shoutouts: ShoutoutWithRecipient[]): string {
     <div style="padding: 12px 20px;">
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Team Shoutouts</h2>
       ${shoutoutCards}
+    </div>
+  `;
+}
+
+export interface BirthdayPerson {
+  name: string;
+  monthDay: string;
+}
+
+export async function getTodaysBirthdays(): Promise<BirthdayPerson[]> {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const todayMMDD = `${month}-${day}`;
+
+  const recipients = await prisma.recipient.findMany({
+    where: {
+      birthday: todayMMDD,
+      active: true,
+      optOutBirthday: false,
+    },
+    select: { name: true, birthday: true },
+  });
+
+  return recipients
+    .filter((r): r is { name: string; birthday: string } => r.birthday !== null)
+    .map(r => ({ name: r.name, monthDay: r.birthday }));
+}
+
+async function renderBirthdaySection(birthdays: BirthdayPerson[]): Promise<string> {
+  if (!birthdays || birthdays.length === 0) return '';
+
+  const cards = await Promise.all(birthdays.map(async (person, index) => {
+    const message = await generateBirthdayShoutout(person.name, person.monthDay);
+    return `
+      <div style="background-color: #fdf4ff; border-left: 3px solid #a855f7; padding: 12px; margin-bottom: ${index === birthdays.length - 1 ? '0' : '12px'}; border-radius: 0 2px 2px 0;">
+        <p style="margin: 0 0 4px 0; font-size: 12px; color: #7e22ce; font-weight: 700; letter-spacing: 0.4px;">🎂 BIRTHDAY SHOUTOUT</p>
+        <p style="margin: 0; font-size: 13px; color: #581c87; line-height: 1.5;">${message}</p>
+      </div>
+    `;
+  }));
+
+  return `
+    <!-- Birthday Shoutouts -->
+    <div style="padding: 12px 20px;">
+      <h2 style="margin: 0 0 12px 0; color: #7e22ce; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #a855f7; padding-bottom: 6px;">🎂 Birthday Shoutouts</h2>
+      ${cards.join('')}
+    </div>
+  `;
+}
+
+function renderUnsubscribeFooter(recipientId: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://retriever-digest.onrender.com';
+  const digestUrl = `${baseUrl}/api/unsubscribe?id=${recipientId}&type=digest`;
+  const birthdayUrl = `${baseUrl}/api/unsubscribe?id=${recipientId}&type=birthday`;
+  return `
+    <div style="text-align: center; padding: 10px 20px 4px; border-top: 1px solid #e5e7eb;">
+      <p style="margin: 0; font-size: 11px; color: #9ca3af;">
+        <a href="${digestUrl}" style="color: #9ca3af; text-decoration: underline;">Unsubscribe from digest</a>
+        &nbsp;·&nbsp;
+        <a href="${birthdayUrl}" style="color: #9ca3af; text-decoration: underline;">Opt out of birthday shoutouts</a>
+      </p>
     </div>
   `;
 }
@@ -682,7 +745,9 @@ export async function generateDailyDigest(
   shoutouts?: ShoutoutWithRecipient[],
   aiContentOverride?: AIContent,
   recentInspirationContents?: string[],
-  testimonialsOverride?: Testimonial[]
+  testimonialsOverride?: Testimonial[],
+  birthdaysOverride?: BirthdayPerson[],
+  recipientId?: string
 ): Promise<string> {
   // Fetch all data in parallel for efficiency
   const [digestData, previousData, goals, pendingShoutouts] = await Promise.all([
@@ -694,6 +759,7 @@ export async function generateDailyDigest(
   const testimonials = testimonialsOverride ?? await getRecentTestimonials(2);
   const recentInspirations = recentInspirationContents ?? await getRecentInspirationContents(14);
   const aiContent = aiContentOverride ?? await generateAIContent(recentInspirations);
+  const birthdays = birthdaysOverride ?? await getTodaysBirthdays();
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
   const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
@@ -745,7 +811,10 @@ export async function generateDailyDigest(
   // Use today's date (when email is sent) not the data date (yesterday)
   const dateStr = new Date().toISOString().split('T')[0];
   
-  const newCustomerAlerts = await renderNewCustomerAlerts(newCustomerEstimates);
+  const [newCustomerAlerts, birthdaySection] = await Promise.all([
+    renderNewCustomerAlerts(newCustomerEstimates),
+    renderBirthdaySection(birthdays),
+  ]);
 
   const html = `
 <!DOCTYPE html>
@@ -763,6 +832,8 @@ export async function generateDailyDigest(
       <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">Daily Digest</h1>
       <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 12px;">${formatDate(dateStr)}</p>
     </div>
+
+    ${birthdaySection}
 
     <!-- Motivational Section -->
     ${renderMotivationalSection(motivational)}
@@ -900,6 +971,8 @@ export async function generateDailyDigest(
       ${renderAIContent(aiContent)}
     </div>
 
+    ${recipientId ? renderUnsubscribeFooter(recipientId) : ''}
+
     <!-- Footer -->
     <div style="background-color: ${BRAND_RED_DARK}; padding: 16px; text-align: center;">
       <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; opacity: 0.9;" />
@@ -980,7 +1053,8 @@ export async function generateDailyDigestWithMockFallback(
   shoutouts?: ShoutoutWithRecipient[],
   aiContentOverride?: AIContent,
   recentInspirationContents?: string[],
-  testimonialsOverride?: Testimonial[]
+  testimonialsOverride?: Testimonial[],
+  birthdaysOverride?: BirthdayPerson[]
 ): Promise<{ html: string; isMockData: boolean; shoutoutIds: string[] }> {
   // Fetch all data in parallel
   const [digestData, previousData, goals, pendingShoutouts] = await Promise.all([
@@ -995,6 +1069,7 @@ export async function generateDailyDigestWithMockFallback(
   const dataToUse = digestData || MOCK_DIGEST_DATA;
   const recentInspirations = recentInspirationContents ?? await getRecentInspirationContents(14);
   const aiContent = aiContentOverride ?? await generateAIContent(recentInspirations);
+  const birthdays = birthdaysOverride ?? await getTodaysBirthdays();
 
   const monthlyGoal = goals.find(g => g.type === GoalType.MONTHLY);
   const annualGoal = goals.find(g => g.type === GoalType.ANNUAL);
@@ -1034,7 +1109,10 @@ export async function generateDailyDigestWithMockFallback(
   // Collect shoutout IDs for deletion after send
   const shoutoutIds = pendingShoutouts.map(s => s.id);
   
-  const newCustomerAlerts = await renderNewCustomerAlerts(newCustomerEstimates);
+  const [newCustomerAlerts, birthdaySection] = await Promise.all([
+    renderNewCustomerAlerts(newCustomerEstimates),
+    renderBirthdaySection(birthdays),
+  ]);
 
   const html = `
 <!DOCTYPE html>
@@ -1052,6 +1130,8 @@ export async function generateDailyDigestWithMockFallback(
       <h1 style="margin: 0; color: white; font-size: 20px; font-weight: 600;">Daily Digest</h1>
       <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.85); font-size: 12px;">${formatDate(dateStr)}</p>
     </div>
+
+    ${birthdaySection}
 
     <!-- Motivational Section -->
     ${renderMotivationalSection(motivational)}
@@ -1204,10 +1284,11 @@ export async function generateDailyDigestWithMockFallback(
 }
 
 export async function sendDailyDigest(): Promise<SendDigestResult> {
-  // Fetch recipients and shoutouts in parallel
-  const [recipients, shoutouts] = await Promise.all([
-    prisma.recipient.findMany({ where: { active: true } }),
+  // Fetch recipients (excluding opt-outs), shoutouts, and today's birthdays in parallel
+  const [recipients, shoutouts, birthdays] = await Promise.all([
+    prisma.recipient.findMany({ where: { active: true, optOutDigest: false } }),
     getPendingShoutouts(),
+    getTodaysBirthdays(),
   ]);
   
   const recentInspirations = await getRecentInspirationContents(14);
@@ -1232,8 +1313,8 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
 
   for (const recipient of recipients) {
     try {
-      // Pass shoutouts to avoid re-fetching for each recipient
-      const html = await generateDailyDigest(recipient.name, shoutouts, aiContent, recentInspirations, testimonials);
+      // Pass shoutouts, birthdays, and recipientId to avoid re-fetching per recipient
+      const html = await generateDailyDigest(recipient.name, shoutouts, aiContent, recentInspirations, testimonials, birthdays, recipient.id);
       const emailResult = await sendEmail({
         to: recipient.email,
         subject,

@@ -361,6 +361,80 @@ function isRecentContent(content: string, recentContents: string[]): boolean {
   return recentContents.some(item => item.trim().toLowerCase() === normalized);
 }
 
+const FALLBACK_BIRTHDAY_MESSAGES = [
+  (name: string) => `Happy Birthday, ${name}! 🎂 Wishing you a fantastic day — we're lucky to have you on the Boone Graphics team. Hope today brings nothing but good things your way!`,
+  (name: string) => `Today is ${name}'s birthday! Take a moment to wish them a great one if you see them. We're glad you're part of the team, ${name.split(' ')[0]}!`,
+  (name: string) => `HAPPY BIRTHDAY, ${name.toUpperCase()}! 🎉 Another trip around the sun for one of our own. Hope it's a great one!`,
+];
+
+function getRandomBirthdayFallback(name: string): string {
+  const index = Math.floor(Math.random() * FALLBACK_BIRTHDAY_MESSAGES.length);
+  return FALLBACK_BIRTHDAY_MESSAGES[index](name);
+}
+
+function formatMonthDay(monthDay: string): string {
+  const [month, day] = monthDay.split('-');
+  const date = new Date(2000, parseInt(month) - 1, parseInt(day));
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
+
+export async function generateBirthdayShoutout(name: string, monthDay: string): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const firstName = name.trim().split(/\s+/)[0];
+  const formattedDate = formatMonthDay(monthDay);
+
+  if (!apiKey) {
+    console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback birthday shoutout');
+    return getRandomBirthdayFallback(name);
+  }
+
+  try {
+    const anthropic = new Anthropic({ apiKey });
+
+    const prompt = `Today is ${formattedDate}. Write a fun, warm birthday shoutout for ${name} who works at Boone Graphics, a medical printing company.
+
+Choose ONE of these approaches:
+1. Find a famous celebrity, musician, athlete, or historical figure who also has a birthday on ${formattedDate} and make a witty, fun connection to ${firstName}
+2. Reference a notable, interesting, or amusing historical event that happened on ${formattedDate} (any year) and tie it back to ${firstName} in a clever way
+
+Guidelines:
+- Keep it to 2-3 sentences max
+- Tone: warm, playful, and workplace-appropriate
+- Use the person's first name (${firstName}) naturally in the message
+- NEVER mention age or how many years, or imply how old they are
+- Make it feel personal and fun, not generic
+- Start with something like "HAPPY BIRTHDAY ${firstName.toUpperCase()}!" or "TODAY IS ${firstName.toUpperCase()}'S BIRTHDAY!" or a similarly energetic opener
+
+Examples of the style we're going for:
+- "HAPPY BIRTHDAY SCOTT! Today Scott shares his birthday with Jimmy Page — which totally explains why he rocks so hard around here. Wish him a great one if you see him!"
+- "TODAY IS ANDREW'S BIRTHDAY! On this day in 1969, the world's first ATM was installed in the US — fitting, since Andrew is basically the team's go-to resource for everything. Happy Birthday, Andrew!"
+
+Return ONLY the birthday message text, no quotes or labels.`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      temperature: 1,
+      messages: [{ role: 'user', content: prompt }],
+      system: 'You write fun, creative birthday shoutouts for a workplace email digest. You find clever connections between the birthday date and the person. Never mention age. Always be warm and workplace-appropriate.',
+    });
+
+    const textBlock = response.content.find(block => block.type === 'text');
+    const text = textBlock && textBlock.type === 'text' ? textBlock.text.trim() : null;
+
+    if (!text) {
+      console.log('[AI Content] Empty birthday response, using fallback');
+      return getRandomBirthdayFallback(name);
+    }
+
+    return text.replace(/\s+/g, ' ').trim();
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[AI Content] Error generating birthday shoutout:', errorMessage);
+    return getRandomBirthdayFallback(name);
+  }
+}
+
 function getRandomMotivationalFallback(): MotivationalSummary {
   const index = Math.floor(Math.random() * FALLBACK_MOTIVATIONAL.length);
   return FALLBACK_MOTIVATIONAL[index];

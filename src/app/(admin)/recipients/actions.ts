@@ -7,19 +7,42 @@ export type RecipientData = {
   name: string;
   email: string;
   active: boolean;
+  birthday: string | null;
+  optOutDigest: boolean;
+  optOutBirthday: boolean;
 };
+
+function mapRecipient(r: {
+  id: string;
+  name: string;
+  email: string;
+  active: boolean;
+  birthday: string | null;
+  optOutDigest: boolean;
+  optOutBirthday: boolean;
+}): RecipientData {
+  return {
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    active: r.active,
+    birthday: r.birthday,
+    optOutDigest: r.optOutDigest,
+    optOutBirthday: r.optOutBirthday,
+  };
+}
+
+function validateBirthday(birthday: string): boolean {
+  if (!birthday) return true;
+  return /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(birthday.trim());
+}
 
 export async function getRecipients(): Promise<RecipientData[]> {
   const recipients = await prisma.recipient.findMany({
     orderBy: { name: 'asc' },
   });
 
-  return recipients.map((r) => ({
-    id: r.id,
-    name: r.name,
-    email: r.email,
-    active: r.active,
-  }));
+  return recipients.map(mapRecipient);
 }
 
 export type AddRecipientResult = {
@@ -28,7 +51,13 @@ export type AddRecipientResult = {
   recipient?: RecipientData;
 };
 
-export async function addRecipient(name: string, email: string): Promise<AddRecipientResult> {
+export async function addRecipient(
+  name: string,
+  email: string,
+  birthday?: string,
+  optOutDigest?: boolean,
+  optOutBirthday?: boolean
+): Promise<AddRecipientResult> {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return { success: false, error: 'Invalid email format' };
@@ -36,6 +65,11 @@ export async function addRecipient(name: string, email: string): Promise<AddReci
 
   if (!name.trim()) {
     return { success: false, error: 'Name is required' };
+  }
+
+  const trimmedBirthday = birthday?.trim() || null;
+  if (trimmedBirthday && !validateBirthday(trimmedBirthday)) {
+    return { success: false, error: 'Birthday must be in MM-DD format (e.g. 02-18)' };
   }
 
   try {
@@ -49,18 +83,13 @@ export async function addRecipient(name: string, email: string): Promise<AddReci
         name: name.trim(),
         email: email.toLowerCase().trim(),
         active: true,
+        birthday: trimmedBirthday,
+        optOutDigest: optOutDigest ?? false,
+        optOutBirthday: optOutBirthday ?? false,
       },
     });
 
-    return {
-      success: true,
-      recipient: {
-        id: recipient.id,
-        name: recipient.name,
-        email: recipient.email,
-        active: recipient.active,
-      },
-    };
+    return { success: true, recipient: mapRecipient(recipient) };
   } catch {
     return { success: false, error: 'Failed to add recipient' };
   }
@@ -72,7 +101,14 @@ export type UpdateRecipientResult = {
   recipient?: RecipientData;
 };
 
-export async function updateRecipient(id: string, name: string, email: string): Promise<UpdateRecipientResult> {
+export async function updateRecipient(
+  id: string,
+  name: string,
+  email: string,
+  birthday?: string,
+  optOutDigest?: boolean,
+  optOutBirthday?: boolean
+): Promise<UpdateRecipientResult> {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return { success: false, error: 'Invalid email format' };
@@ -80,6 +116,11 @@ export async function updateRecipient(id: string, name: string, email: string): 
 
   if (!name.trim()) {
     return { success: false, error: 'Name is required' };
+  }
+
+  const trimmedBirthday = birthday?.trim() || null;
+  if (trimmedBirthday && !validateBirthday(trimmedBirthday)) {
+    return { success: false, error: 'Birthday must be in MM-DD format (e.g. 02-18)' };
   }
 
   try {
@@ -93,18 +134,13 @@ export async function updateRecipient(id: string, name: string, email: string): 
       data: {
         name: name.trim(),
         email: email.toLowerCase().trim(),
+        birthday: trimmedBirthday,
+        optOutDigest: optOutDigest ?? false,
+        optOutBirthday: optOutBirthday ?? false,
       },
     });
 
-    return {
-      success: true,
-      recipient: {
-        id: recipient.id,
-        name: recipient.name,
-        email: recipient.email,
-        active: recipient.active,
-      },
-    };
+    return { success: true, recipient: mapRecipient(recipient) };
   } catch {
     return { success: false, error: 'Failed to update recipient' };
   }

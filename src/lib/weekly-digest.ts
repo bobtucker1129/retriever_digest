@@ -402,7 +402,8 @@ function generateWeeklyDigestHTML(
   aiContent: AIContent,
   motivational: MotivationalSummary,
   newCustomerAlerts: string,
-  shoutouts: ShoutoutWithRecipient[] = []
+  shoutouts: ShoutoutWithRecipient[] = [],
+  recipientId?: string
 ): string {
   const weekRangeStr = formatWeekRange(data.weekStartDate, data.weekEndDate);
   
@@ -582,6 +583,8 @@ function generateWeeklyDigestHTML(
       ${renderAIContent(aiContent)}
     </div>
 
+    ${recipientId ? renderWeeklyUnsubscribeFooter(recipientId) : ''}
+
     <!-- Footer -->
     <div style="background-color: ${BRAND_RED_DARK}; padding: 16px; text-align: center;">
       <img src="${LOGO_URL}" alt="Retriever" style="width: 80px; height: 80px; margin-bottom: 6px; opacity: 0.9;" />
@@ -594,11 +597,27 @@ function generateWeeklyDigestHTML(
   `.trim();
 }
 
+function renderWeeklyUnsubscribeFooter(recipientId: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://retriever-digest.onrender.com';
+  const digestUrl = `${baseUrl}/api/unsubscribe?id=${recipientId}&type=digest`;
+  const birthdayUrl = `${baseUrl}/api/unsubscribe?id=${recipientId}&type=birthday`;
+  return `
+    <div style="text-align: center; padding: 10px 20px 4px; border-top: 1px solid #e5e7eb;">
+      <p style="margin: 0; font-size: 11px; color: #9ca3af;">
+        <a href="${digestUrl}" style="color: #9ca3af; text-decoration: underline;">Unsubscribe from digest</a>
+        &nbsp;·&nbsp;
+        <a href="${birthdayUrl}" style="color: #9ca3af; text-decoration: underline;">Opt out of birthday shoutouts</a>
+      </p>
+    </div>
+  `;
+}
+
 export async function generateWeeklyDigest(
   recipientName: string,
   shoutouts?: ShoutoutWithRecipient[],
   aiContentOverride?: AIContent,
-  recentInspirationContents?: string[]
+  recentInspirationContents?: string[],
+  recipientId?: string
 ): Promise<string> {
   const [weeklyData, goals, pendingShoutouts] = await Promise.all([
     getWeeklyDigestData(),
@@ -665,7 +684,7 @@ export async function generateWeeklyDigest(
     };
     const motivational = await generateMotivationalSummary(metricsForAI);
     const newCustomerAlerts = await renderNewCustomerAlerts(emptyData.newCustomerEstimates);
-    return generateWeeklyDigestHTML(recipientName, emptyData, monthly, annual, aiContent, motivational, newCustomerAlerts, pendingShoutouts);
+    return generateWeeklyDigestHTML(recipientName, emptyData, monthly, annual, aiContent, motivational, newCustomerAlerts, pendingShoutouts, recipientId);
   }
 
   const metricsForAI: DigestMetricsForAI = {
@@ -681,7 +700,7 @@ export async function generateWeeklyDigest(
   const motivational = await generateMotivationalSummary(metricsForAI);
 
   const newCustomerAlerts = await renderNewCustomerAlerts(weeklyData.newCustomerEstimates || []);
-  return generateWeeklyDigestHTML(recipientName, weeklyData, monthly, annual, aiContent, motivational, newCustomerAlerts, pendingShoutouts);
+  return generateWeeklyDigestHTML(recipientName, weeklyData, monthly, annual, aiContent, motivational, newCustomerAlerts, pendingShoutouts, recipientId);
 }
 
 export interface SendWeeklyDigestResult {
@@ -691,9 +710,9 @@ export interface SendWeeklyDigestResult {
 }
 
 export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
-  // Fetch recipients and shoutouts in parallel
+  // Fetch recipients (excluding opt-outs) and shoutouts in parallel
   const [recipients, shoutouts] = await Promise.all([
-    prisma.recipient.findMany({ where: { active: true } }),
+    prisma.recipient.findMany({ where: { active: true, optOutDigest: false } }),
     getPendingShoutouts(),
   ]);
   
@@ -718,7 +737,7 @@ export async function sendWeeklyDigest(): Promise<SendWeeklyDigestResult> {
   for (const recipient of recipients) {
     try {
       // Pass shoutouts to avoid re-fetching for each recipient
-      const html = await generateWeeklyDigest(recipient.name, shoutouts, aiContent, recentInspirations);
+      const html = await generateWeeklyDigest(recipient.name, shoutouts, aiContent, recentInspirations, recipient.id);
       const emailResult = await sendEmail({
         to: recipient.email,
         subject,

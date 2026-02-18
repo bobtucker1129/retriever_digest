@@ -7,12 +7,22 @@ type Props = {
   initialRecipients: RecipientData[];
 };
 
+function formatBirthdayDisplay(birthday: string | null): string {
+  if (!birthday) return '—';
+  const [month, day] = birthday.split('-');
+  const date = new Date(2000, parseInt(month) - 1, parseInt(day));
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export default function RecipientsTable({ initialRecipients }: Props) {
   const [recipients, setRecipients] = useState<RecipientData[]>(initialRecipients);
   const [showModal, setShowModal] = useState(false);
   const [editingRecipient, setEditingRecipient] = useState<RecipientData | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [birthday, setBirthday] = useState('');
+  const [optOutDigest, setOptOutDigest] = useState(false);
+  const [optOutBirthday, setOptOutBirthday] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,6 +39,9 @@ export default function RecipientsTable({ initialRecipients }: Props) {
     setEditingRecipient(null);
     setName('');
     setEmail('');
+    setBirthday('');
+    setOptOutDigest(false);
+    setOptOutBirthday(false);
     setError('');
     setShowModal(true);
   };
@@ -37,6 +50,9 @@ export default function RecipientsTable({ initialRecipients }: Props) {
     setEditingRecipient(recipient);
     setName(recipient.name);
     setEmail(recipient.email);
+    setBirthday(recipient.birthday || '');
+    setOptOutDigest(recipient.optOutDigest);
+    setOptOutBirthday(recipient.optOutBirthday);
     setError('');
     setShowModal(true);
   };
@@ -46,6 +62,9 @@ export default function RecipientsTable({ initialRecipients }: Props) {
     setEditingRecipient(null);
     setName('');
     setEmail('');
+    setBirthday('');
+    setOptOutDigest(false);
+    setOptOutBirthday(false);
     setError('');
   };
 
@@ -66,7 +85,7 @@ export default function RecipientsTable({ initialRecipients }: Props) {
     setIsSubmitting(true);
 
     if (editingRecipient) {
-      const result = await updateRecipient(editingRecipient.id, name, email);
+      const result = await updateRecipient(editingRecipient.id, name, email, birthday || undefined, optOutDigest, optOutBirthday);
       setIsSubmitting(false);
 
       if (result.success && result.recipient) {
@@ -81,7 +100,7 @@ export default function RecipientsTable({ initialRecipients }: Props) {
         setError(result.error || 'Failed to update recipient');
       }
     } else {
-      const result = await addRecipient(name, email);
+      const result = await addRecipient(name, email, birthday || undefined, optOutDigest, optOutBirthday);
       setIsSubmitting(false);
 
       if (result.success && result.recipient) {
@@ -159,7 +178,9 @@ export default function RecipientsTable({ initialRecipients }: Props) {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
+                <th>Birthday</th>
                 <th>Status</th>
+                <th>Flags</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -168,6 +189,9 @@ export default function RecipientsTable({ initialRecipients }: Props) {
                 <tr key={recipient.id}>
                   <td>{recipient.name}</td>
                   <td>{recipient.email}</td>
+                  <td style={{ color: recipient.birthday ? '#374151' : '#9ca3af', fontSize: '13px' }}>
+                    {formatBirthdayDisplay(recipient.birthday)}
+                  </td>
                   <td>
                     <button
                       className={`status-toggle ${recipient.active ? 'active' : 'inactive'} ${togglingId === recipient.id ? 'toggling' : ''}`}
@@ -180,6 +204,23 @@ export default function RecipientsTable({ initialRecipients }: Props) {
                       </span>
                       <span className="toggle-label">{recipient.active ? 'Active' : 'Inactive'}</span>
                     </button>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {recipient.optOutDigest && (
+                        <span style={{ fontSize: '11px', background: '#fef2f2', color: '#b91c1c', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                          No Digest
+                        </span>
+                      )}
+                      {recipient.optOutBirthday && (
+                        <span style={{ fontSize: '11px', background: '#fef9c3', color: '#854d0e', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                          No Bday
+                        </span>
+                      )}
+                      {!recipient.optOutDigest && !recipient.optOutBirthday && (
+                        <span style={{ fontSize: '11px', color: '#9ca3af' }}>—</span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <div className="actions-cell">
@@ -221,6 +262,41 @@ export default function RecipientsTable({ initialRecipients }: Props) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="john@example.com"
                 />
+              </div>
+              <div className="modal-field">
+                <label className="modal-label" htmlFor="birthday">
+                  Birthday <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '12px' }}>(month and day only)</span>
+                </label>
+                <input
+                  id="birthday"
+                  type="text"
+                  className="modal-input"
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
+                  placeholder="MM-DD (e.g. 02-18)"
+                  maxLength={5}
+                />
+              </div>
+              <div className="modal-field" style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px', marginTop: '4px' }}>
+                <p className="modal-label" style={{ marginBottom: '8px' }}>Opt-Out Settings</p>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={optOutDigest}
+                    onChange={(e) => setOptOutDigest(e.target.checked)}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '13px', color: '#374151' }}>Opt out of digest emails</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={optOutBirthday}
+                    onChange={(e) => setOptOutBirthday(e.target.checked)}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '13px', color: '#374151' }}>Opt out of birthday shoutouts</span>
+                </label>
               </div>
               {error && <p className="modal-error">{error}</p>}
               <div className="modal-actions">
