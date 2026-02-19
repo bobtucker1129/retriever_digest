@@ -7,12 +7,21 @@ export const fetchCache = 'force-no-store';
 
 export async function GET() {
   try {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayMMDD = `${month}-${day}`;
+    const previewRecipientId = 'preview-user';
+
     const recentInspirations = await getRecentInspirationContents(14);
     const { html, isMockData } = await generateDailyDigestWithMockFallback(
       'Preview User',
       undefined,
       undefined,
-      recentInspirations
+      recentInspirations,
+      undefined,
+      [{ name: 'Preview User', monthDay: todayMMDD }],
+      previewRecipientId
     );
 
     const response = new NextResponse(html, {

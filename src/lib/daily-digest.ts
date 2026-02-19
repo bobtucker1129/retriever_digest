@@ -1072,7 +1072,8 @@ export async function generateDailyDigestWithMockFallback(
   aiContentOverride?: AIContent,
   recentInspirationContents?: string[],
   testimonialsOverride?: Testimonial[],
-  birthdaysOverride?: BirthdayPerson[]
+  birthdaysOverride?: BirthdayPerson[],
+  recipientId?: string
 ): Promise<{ html: string; isMockData: boolean; shoutoutIds: string[] }> {
   // Fetch all data in parallel
   const [digestData, previousData, goals, pendingShoutouts] = await Promise.all([
@@ -1286,6 +1287,8 @@ export async function generateDailyDigestWithMockFallback(
       <h2 style="margin: 0 0 12px 0; color: ${BRAND_RED_DARK}; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid ${BRAND_RED}; padding-bottom: 6px;">Daily Inspiration</h2>
       ${renderAIContent(aiContent)}
     </div>
+
+    ${recipientId ? renderUnsubscribeFooter(recipientId) : ''}
 
     <!-- Footer -->
     <div style="background-color: ${BRAND_RED_DARK}; padding: 16px; text-align: center;">

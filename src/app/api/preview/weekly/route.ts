@@ -8,12 +8,14 @@ export const fetchCache = 'force-no-store';
 
 export async function GET() {
   try {
+    const previewRecipientId = 'preview-user';
     const recentInspirations = await getRecentInspirationContents(14);
     const { html, isMockData } = await generateWeeklyDigestWithMockFallback(
       'Preview User',
       undefined,
       undefined,
-      recentInspirations
+      recentInspirations,
+      previewRecipientId
     );
 
     const response = new NextResponse(html, {

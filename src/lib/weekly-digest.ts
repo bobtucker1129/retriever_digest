@@ -808,7 +808,8 @@ export async function generateWeeklyDigestWithMockFallback(
   recipientName: string,
   shoutouts?: ShoutoutWithRecipient[],
   aiContentOverride?: AIContent,
-  recentInspirationContents?: string[]
+  recentInspirationContents?: string[],
+  recipientId?: string
 ): Promise<{ html: string; isMockData: boolean; shoutoutIds: string[] }> {
   const [weeklyData, goals, pendingShoutouts] = await Promise.all([
     getWeeklyDigestData(),
@@ -866,7 +867,17 @@ export async function generateWeeklyDigestWithMockFallback(
   const shoutoutIds = pendingShoutouts.map(s => s.id);
 
   const newCustomerAlerts = await renderNewCustomerAlerts(dataToUse.newCustomerEstimates || []);
-  const html = generateWeeklyDigestHTML(recipientName, dataToUse, monthly, annual, aiContent, motivational, newCustomerAlerts, pendingShoutouts);
+  const html = generateWeeklyDigestHTML(
+    recipientName,
+    dataToUse,
+    monthly,
+    annual,
+    aiContent,
+    motivational,
+    newCustomerAlerts,
+    pendingShoutouts,
+    recipientId
+  );
 
   return { html, isMockData, shoutoutIds };
 }
