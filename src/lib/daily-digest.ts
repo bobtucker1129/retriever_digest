@@ -342,13 +342,31 @@ export interface BirthdayPerson {
 
 export async function getTodaysBirthdays(): Promise<BirthdayPerson[]> {
   const today = new Date();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  const todayMMDD = `${month}-${day}`;
+  const dayOfWeek = today.getDay(); // 0=Sun ... 5=Fri ... 6=Sat
+
+  const targetDates: string[] = [];
+  const buildMMDD = (date: Date): string => {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${month}-${day}`;
+  };
+
+  if (dayOfWeek === 5) {
+    // Friday digest should include weekend birthdays so wishes are not belated.
+    targetDates.push(buildMMDD(today));
+    const saturday = new Date(today);
+    saturday.setDate(today.getDate() + 1);
+    targetDates.push(buildMMDD(saturday));
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() + 2);
+    targetDates.push(buildMMDD(sunday));
+  } else {
+    targetDates.push(buildMMDD(today));
+  }
 
   const recipients = await prisma.recipient.findMany({
     where: {
-      birthday: todayMMDD,
+      birthday: { in: targetDates },
       active: true,
       optOutBirthday: false,
     },
