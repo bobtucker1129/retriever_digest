@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prisma:seed": "npx prisma db seed"
+    "prisma:seed": "npx prisma db seed",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -24,15 +26,18 @@
     "pg": "^8.17.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "resend": "^6.8.0"
+    "resend": "^6.8.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.0.9",
     "@types/pg": "^8.16.0",
     "@types/react": "^19.2.9",
+    "@vitest/coverage-v8": "^4.0.18",
     "dotenv": "^17.2.3",
     "prisma": "^7.2.0",
     "tsx": "^4.19.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }
