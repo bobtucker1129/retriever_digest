@@ -19,8 +19,12 @@ import {
   type AIInsight as AIInsightFromContent,
   type RecentDigestSummary,
 } from '@/lib/ai-content';
-import { sendEmail } from '@/lib/email';
 import { getRecentTestimonials, formatTestimonialLocation, recordTestimonialDisplay, type Testimonial } from '@/lib/loyaltyloop';
+import { BRAND_GRAY, BRAND_RED, BRAND_RED_DARK, BRAND_RED_LIGHT, LOGO_URL } from '@/lib/digest-config';
+import { formatCurrency, formatDate, formatNumber } from '@/lib/digest-format';
+import { getBirthdayTargetDates } from '@/lib/digest-dates';
+import { renderUnsubscribeFooter } from '@/lib/unsubscribe-links';
+import { sendDigestBatch } from '@/lib/digest-sender';
 
 // Shoutout type for team messages
 export interface ShoutoutWithRecipient {
@@ -29,15 +33,6 @@ export interface ShoutoutWithRecipient {
   recipientName: string;
   createdAt: Date;
 }
-
-// BooneGraphics Brand Colors
-const BRAND_RED = '#A1252B';
-const BRAND_RED_DARK = '#7D1D22';
-const BRAND_RED_LIGHT = '#F9E6E7';
-const BRAND_GRAY = '#5f6360';
-
-// Retriever Logo URL (PNG for email client compatibility)
-const LOGO_URL = 'https://www.booneproofs.net/email/RETRIEVER@3x.png';
 
 export interface SendDigestResult {
   sent: number;
@@ -107,29 +102,6 @@ export interface DigestDataPayload {
     attribution?: string;
     savedAt?: string;
   };
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatNumber(num: number): string {
-  return new Intl.NumberFormat('en-US').format(num);
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
 }
 
 function getRecipientFirstName(name: string): string | undefined {
@@ -342,27 +314,7 @@ export interface BirthdayPerson {
 
 export async function getTodaysBirthdays(): Promise<BirthdayPerson[]> {
   const today = new Date();
-  const dayOfWeek = today.getDay(); // 0=Sun ... 5=Fri ... 6=Sat
-
-  const targetDates: string[] = [];
-  const buildMMDD = (date: Date): string => {
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${month}-${day}`;
-  };
-
-  if (dayOfWeek === 5) {
-    // Friday digest should include weekend birthdays so wishes are not belated.
-    targetDates.push(buildMMDD(today));
-    const saturday = new Date(today);
-    saturday.setDate(today.getDate() + 1);
-    targetDates.push(buildMMDD(saturday));
-    const sunday = new Date(today);
-    sunday.setDate(today.getDate() + 2);
-    targetDates.push(buildMMDD(sunday));
-  } else {
-    targetDates.push(buildMMDD(today));
-  }
+  const targetDates = getBirthdayTargetDates(today);
 
   const recipients = await prisma.recipient.findMany({
     where: {
@@ -396,21 +348,6 @@ async function renderBirthdaySection(birthdays: BirthdayPerson[]): Promise<strin
     <div style="padding: 12px 20px;">
       <h2 style="margin: 0 0 12px 0; color: #7e22ce; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #a855f7; padding-bottom: 6px;">🎂 Birthday Shoutouts</h2>
       ${cards.join('')}
-    </div>
-  `;
-}
-
-function renderUnsubscribeFooter(recipientId: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://retriever-digest.onrender.com';
-  const digestUrl = `${baseUrl}/api/unsubscribe?id=${recipientId}&type=digest`;
-  const birthdayUrl = `${baseUrl}/api/unsubscribe?id=${recipientId}&type=birthday`;
-  return `
-    <div style="text-align: center; padding: 10px 20px 4px; border-top: 1px solid #e5e7eb;">
-      <p style="margin: 0; font-size: 11px; color: #9ca3af;">
-        <a href="${digestUrl}" style="color: #9ca3af; text-decoration: underline;">Unsubscribe from digest</a>
-        &nbsp;·&nbsp;
-        <a href="${birthdayUrl}" style="color: #9ca3af; text-decoration: underline;">Opt out of birthday shoutouts</a>
-      </p>
     </div>
   `;
 }
@@ -1318,12 +1255,6 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
   
   const testimonials = await getRecentTestimonials(2);
 
-  const result: SendDigestResult = {
-    sent: 0,
-    failed: 0,
-    errors: [],
-  };
-
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', {
     weekday: 'short',
@@ -1332,31 +1263,21 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
   });
   const subject = `Retriever Daily Digest - ${dateStr}`;
 
-  for (const recipient of recipients) {
-    try {
-      // Pass shoutouts, birthdays, and recipientId to avoid re-fetching per recipient
-      const html = await generateDailyDigest(recipient.name, shoutouts, aiContent, recentInspirations, testimonials, birthdays, recipient.id);
-      const emailResult = await sendEmail({
-        to: recipient.email,
-        subject,
-        html,
-      });
-
-      if (emailResult.success) {
-        console.log(`[Daily Digest] Sent to ${recipient.name} <${recipient.email}>`);
-        result.sent++;
-      } else {
-        console.error(`[Daily Digest] Failed to send to ${recipient.email}: ${emailResult.error}`);
-        result.failed++;
-        result.errors.push(`${recipient.email}: ${emailResult.error}`);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error(`[Daily Digest] Error sending to ${recipient.email}: ${errorMessage}`);
-      result.failed++;
-      result.errors.push(`${recipient.email}: ${errorMessage}`);
-    }
-  }
+  const result = await sendDigestBatch({
+    recipients,
+    subject,
+    logPrefix: 'Daily Digest',
+    buildHtml: (recipient) =>
+      generateDailyDigest(
+        recipient.name,
+        shoutouts,
+        aiContent,
+        recentInspirations,
+        testimonials,
+        birthdays,
+        recipient.id
+      ),
+  });
   
   if (result.sent > 0) {
     await recordTestimonialDisplay(testimonials);
@@ -1366,7 +1287,5 @@ export async function sendDailyDigest(): Promise<SendDigestResult> {
   if (result.sent > 0 && shoutouts.length > 0) {
     await deleteShoutouts(shoutouts.map(s => s.id));
   }
-
-  console.log(`[Daily Digest] Complete - Sent: ${result.sent}, Failed: ${result.failed}`);
   return result;
 }
