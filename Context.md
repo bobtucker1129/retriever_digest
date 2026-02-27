@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-02-15  
+> **Last Updated:** 2026-02-18  
 > **Current Phase:** Phase 4 In Progress  
-> **Status:** System live - Weekly digest greeting + PM estimates column tweaks applied
+> **Status:** System live - security hardening + refactor + automated test loops added; birthday/unsubscribe rollout remains deployed
 
 ---
 
@@ -67,6 +67,12 @@
 - Export tracking system operational
 - PM Performance enhanced with Estimates column
 - Monday weekend aggregation tested successfully (Feb 9 manual, Feb 10 scheduled)
+- Recipient controls upgraded with birthday + dual opt-out flags
+- Self-service unsubscribe endpoints and confirmation page live
+- Daily digest now includes AI birthday shoutouts section
+- Weekend birthdays now included in Friday digest (instead of Monday)
+- Preview routes now inject a virtual preview user with today's birthday and synthetic recipient ID
+- Preview now reliably shows birthday section + unsubscribe footer links in daily and weekly templates
 
 ### Phase 5: Go Live 🔲 PENDING
 
@@ -289,6 +295,57 @@ The same export script handles all scenarios - differences are in timing and how
 ---
 
 ## Session History
+
+### 2026-02-18 (Session 27): Security Hardening + Shared Refactor + Automated Tests
+- **Security Hardening**
+  - Tightened middleware public paths; preview/debug endpoints are no longer publicly exposed by prefix
+  - Added session guard helper for admin-only API routes (`test-email`, preview routes, debug route)
+  - Restricted debug AI route in production (`404`) and removed API key prefix exposure
+  - Removed sensitive login diagnostics and added login rate limiting
+  - Added endpoint rate limiting for test-email, preview routes, and unsubscribe endpoint
+- **Unsubscribe Token Security**
+  - Replaced plain `id/type` unsubscribe links with signed token links (HMAC + expiry)
+  - Updated unsubscribe API to validate tokenized links and keep legacy fallback compatibility
+- **Export Payload Validation**
+  - Added Zod runtime schema validation and payload size guard for `/api/export`
+  - Kept payload backward compatible while rejecting malformed/oversized bodies
+- **Maintainability Refactor (No Visual Changes)**
+  - Extracted shared digest modules: config constants, formatters, date utilities, unsubscribe footer builder, shared send loop utility
+  - Refactored daily/weekly digest modules to consume shared utilities and reduce duplication
+- **Automated Test Loops**
+  - Added Vitest setup (`test`, `test:watch`) with route and utility tests
+  - Added focused tests for date windows, unsubscribe tokens, export route validation, preview/test-email auth behavior, and send loop counters
+  - Verified: `npm test` passing and `npm run build` passing
+
+### 2026-02-18 (Session 26): Birthday Shoutouts + Unsubscribe Rollout, Data Backfill, Preview Test User
+- **Feature Set 1: Recipient Opt-Out / Unsubscribe**
+  - Added `birthday`, `optOutDigest`, and `optOutBirthday` fields to `Recipient`
+  - Added unsubscribe API route: `GET /api/unsubscribe?id=<recipientId>&type=digest|birthday`
+  - Added public `/unsubscribe` confirmation splash page
+  - Added digest footer unsubscribe links for digest and birthday opt-out
+  - Updated middleware public paths for unsubscribe routes
+  - Daily/weekly send pipelines now filter recipients by `active: true` and `optOutDigest: false`
+- **Feature Set 2: Birthday Shoutouts**
+  - Added birthday input + opt-out controls in Admin Recipients UI
+  - Added AI birthday shoutout generator to `ai-content.ts` (celebrity/historical date context, never mention age)
+  - Added birthday shoutout section near top of daily digest
+- **Birthday Data Import / Matching**
+  - Imported birthdays from `Employee Birthday List.csv`
+  - Applied safe automatic matches, then applied user-approved alias matches
+  - Final state: all current recipients now have birthdays populated
+  - Unmatched CSV-only names remain: Rocelia Beltran Miguel, Drew Ochsner, Karina Galicia, Sabrina Arroyo, Jae Smiddy
+- **Weekend Birthday Logic Adjustment**
+  - Updated birthday selection logic so Friday digest includes Fri+Sat+Sun birthdays (no belated Monday birthday wishes)
+  - Next expected real birthday shoutout with this logic: Friday Feb 27 for Liliana (Feb 28)
+- **Preview/Testing Enhancements**
+  - Preview routes now inject a virtual `Preview User` with today's birthday and synthetic `recipientId`
+  - Daily/weekly previews now consistently render unsubscribe links
+  - Verified via local test loops and build pass
+- **Commits & Deployments**
+  - `2ba41ee` Add birthday shoutouts and opt-out/unsubscribe features
+  - `3a96737` Update birthday shoutout timing to include weekend birthdays on Friday
+  - `ff77be6` Fix preview mode to show birthday and unsubscribe sections
+  - All pushed to `main`; Render auto-deploy triggered on each push
 
 ### 2026-02-15 (Session 25): Weekly Digest Tweaks - Greeting & PM Estimates
 - **Tweak 1: Evening Greeting for Weekly Digest**
@@ -768,23 +825,21 @@ The same export script handles all scenarios - differences are in timing and how
 
 ### Immediate Priorities
 
-1. **Verify Monday Daily Digest (Feb 16)** - Should arrive at 7 AM EST with Fri+Sat+Sun data
-   - Confirm the 4 AM export overwrites $0 record with real weekend-aggregated data
-   - Check PM Performance table shows estimates correctly
+1. **Deploy and Validate Security Hardening in Production**
+   - Deploy latest changes and verify admin preview/testing routes require authenticated session
+   - Confirm unsubscribe links in real emails resolve via tokenized flow and still complete opt-out UX
 
-2. **Verify Friday Weekly Digest (Feb 20)** - First weekly digest with our changes
-   - Should greet with "Good evening" instead of "Good morning"
-   - PM Weekly Stats should show Estimates column (PM | Estimates | Orders | Revenue)
-   - Check week-over-week comparisons are accurate
+2. **Monitor First Friday Weekend-Birthday Digest**
+   - Confirm Friday digest includes upcoming weekend birthdays (Fri+Sat+Sun behavior)
+   - Validate message quality and no age mention in production output
 
-3. **Deploy Updated Export Script to PrintSmith Server**
-   - Copy updated `printsmith_export.py` to `C:\Retriever\export\` (includes estimates fix + diagnostic logging)
-   - This is needed so scheduled exports also benefit from the fix
+3. **Run a Real-World Inbox Verification Pass**
+   - Spot-check Gmail/Outlook rendering for daily and weekly templates after refactor
+   - Confirm unsubscribe footer placement and links across clients
 
-4. **(Optional) Improve Weekend Preview Behavior**
-   - `getLatestDigestData()` shows $0 on weekends since latest record is weekend data
-   - Could modify to skip zero-activity records and show last business day for previews
-   - Low priority: only affects admin previews, not production emails
+4. **Deploy Updated Export Script to PrintSmith Server (if not yet synced)**
+   - Ensure the latest repo `printsmith_export.py` is copied to `C:\Retriever\export\`
+   - Keep scheduled exports aligned with repo fixes
 
 ### Completed This Phase
 

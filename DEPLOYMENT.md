@@ -456,6 +456,39 @@ You need to create **TWO tasks**: one for daily exports and one for Friday eveni
 - `/ManualExport` - Run manual export when needed
 - `/ExportHelp` - Troubleshooting and documentation
 
+### Status Notes (2026-02-18)
+
+**Birthday + Unsubscribe Features Deployed:**
+- Added recipient-level controls: `birthday`, `optOutDigest`, `optOutBirthday`
+- Added self-service unsubscribe endpoint: `/api/unsubscribe?id=<recipientId>&type=digest|birthday`
+- Added public confirmation page: `/unsubscribe`
+- Daily digest now includes AI-generated birthday shoutouts
+- Digest send pipeline now excludes recipients with `optOutDigest=true`
+
+**Birthday Data Backfill Completed:**
+- Birthday CSV imported and reconciled against recipients
+- All current recipients now have birthday values populated
+- Remaining unmatched CSV names were non-recipient entries
+
+**Weekend Birthday Timing Update:**
+- Friday digest now includes Friday+Saturday+Sunday birthdays
+- Prevents belated Monday birthday messages
+
+**Preview Validation Improvements:**
+- Preview routes now use a virtual preview user with today's birthday
+- Preview daily and weekly templates now show unsubscribe links consistently
+- Build and preview test loops passed
+
+**Security Hardening + Test Automation (Session 27):**
+- Middleware public path scope tightened; preview/debug endpoints no longer public by prefix
+- Added admin session guards to preview/test-email/debug routes
+- Added rate limiting to login, preview, test-email, and unsubscribe endpoints
+- Unsubscribe links now use signed token URLs with expiry (legacy `id/type` links still accepted for backward compatibility)
+- Export endpoint now validates payload shape via Zod and enforces request size guard
+- Shared digest refactor completed (config/date/format/footer/send helpers extracted; no visual design changes)
+- Automated tests added with Vitest for critical edge paths (date windows, token validation, route auth/validation, send loop counters)
+- Verification: `npm test` passed and `npm run build` passed locally
+
 ---
 
 ## Phase 5: Go Live Checklist

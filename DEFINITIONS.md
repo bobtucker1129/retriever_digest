@@ -1,6 +1,6 @@
 # Retriever Daily Digest - Metric Definitions
 
-> **Last Updated:** 2026-02-10
+> **Last Updated:** 2026-02-18
 
 This document defines all metrics and terminology used in the Retriever Daily Digest emails, organized by section.
 
@@ -213,7 +213,48 @@ PrintSmith has multiple amount fields. Here's what each represents:
 
 ---
 
-## 10. Glossary
+## 11. Birthday Shoutouts
+
+Birthday recognition content displayed near the top of the daily digest.
+
+| Term | Definition |
+|------|------------|
+| **Birthday Shoutout** | AI-generated birthday message for team members whose birthday is in the active digest date set |
+| **Birthday Opt-Out** | Recipient flag (`optOutBirthday`) that excludes a person from birthday shoutout inclusion |
+
+### Birthday Date Logic
+
+- Birthdays are stored as `MM-DD` on each recipient.
+- **Mon-Thu digests:** include only same-day birthdays.
+- **Friday digest:** includes **Friday + Saturday + Sunday** birthdays to avoid belated Monday wishes.
+
+### AI Rules
+
+- Message style: warm, fun, workplace-appropriate.
+- Uses either historical date context or famous shared birthday context.
+- **Never mention age.**
+
+---
+
+## 12. Unsubscribe / Opt-Out
+
+Digest delivery and section participation controls.
+
+| Term | Definition |
+|------|------------|
+| **Digest Opt-Out** | Recipient flag (`optOutDigest`) that excludes recipient from daily and weekly sends |
+| **Birthday Opt-Out** | Recipient flag (`optOutBirthday`) that excludes recipient from birthday shoutout section |
+| **Unsubscribe Endpoint** | `GET /api/unsubscribe?token=<signedToken>` validates signed token payload and sets selected opt-out flag |
+
+### Notes
+
+- Recipient must still be `active=true` to receive sends even when not opted out.
+- Unsubscribe links are embedded in digest templates as signed, expiring tokens.
+- Legacy `id/type` unsubscribe links remain accepted temporarily for backward compatibility with previously sent emails.
+
+---
+
+## 13. Glossary
 
 | Term | Definition |
 |------|------------|
