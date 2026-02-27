@@ -1,11 +1,31 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { generateDailyDigestWithMockFallback, getRecentInspirationContents } from '@/lib/daily-digest';
+import { requireAdminSession } from '@/lib/session-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 // Force dynamic rendering - don't cache at build time
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const unauthorized = requireAdminSession(request);
+  if (unauthorized) return unauthorized;
+
+  const ip = getClientIp(request);
+  const rateLimit = checkRateLimit(`preview-daily:${ip}`, {
+    limit: 60,
+    windowMs: 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many preview requests. Please try again later.' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+      }
+    );
+  }
+
   try {
     const now = new Date();
     const month = String(now.getMonth() + 1).padStart(2, '0');

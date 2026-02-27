@@ -2,8 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateDailyDigestWithMockFallback, getRecentInspirationContents } from '@/lib/daily-digest';
 import { generateWeeklyDigestWithMockFallback } from '@/lib/weekly-digest';
 import { sendEmail } from '@/lib/email';
+import { requireAdminSession } from '@/lib/session-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireAdminSession(request);
+  if (unauthorized) return unauthorized;
+
+  const ip = getClientIp(request);
+  const rateLimit = checkRateLimit(`test-email:${ip}`, {
+    limit: 20,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many test email requests. Please try again later.' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+      }
+    );
+  }
+
   try {
     const body = await request.json();
     const { email, type = 'daily' } = body;

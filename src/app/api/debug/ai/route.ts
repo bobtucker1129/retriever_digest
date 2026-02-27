@@ -1,16 +1,23 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { requireAdminSession } from '@/lib/session-auth';
 
 // Force dynamic rendering - don't cache at build time
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  const unauthorized = requireAdminSession(request);
+  if (unauthorized) return unauthorized;
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   
   const result = {
     keyExists: !!apiKey,
-    keyPrefix: apiKey ? apiKey.substring(0, 12) + '...' : 'none',
     testResult: 'not attempted',
     rawResponse: null as string | null,
     parsedResult: null as object | null,

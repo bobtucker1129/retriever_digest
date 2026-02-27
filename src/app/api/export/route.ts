@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { exportPayloadSchema } from '@/lib/export-payload-schema';
+import { Prisma } from '@/generated/prisma/client';
+
+const MAX_EXPORT_PAYLOAD_BYTES = 1_000_000;
 
 export async function POST(request: NextRequest) {
   const exportSecret = request.headers.get('X-Export-Secret');
@@ -22,6 +26,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength > MAX_EXPORT_PAYLOAD_BYTES) {
+      return NextResponse.json(
+        { error: 'Payload too large' },
+        { status: 413 }
+      );
+    }
+
     const data = await request.json();
 
     if (!data || typeof data !== 'object') {
@@ -31,13 +43,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const parsed = exportPayloadSchema.safeParse(data);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid export payload shape' },
+        { status: 400 }
+      );
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     await prisma.digestData.upsert({
       where: { exportDate: today },
-      update: { data },
-      create: { exportDate: today, data },
+      update: { data: parsed.data as Prisma.InputJsonValue },
+      create: { exportDate: today, data: parsed.data as Prisma.InputJsonValue },
     });
 
     const dateStr = today.toISOString().split('T')[0];

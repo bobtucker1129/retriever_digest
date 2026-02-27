@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SESSION_COOKIE_NAME } from '@/lib/session-auth';
 
-const SESSION_COOKIE_NAME = 'retriever_session';
-
-const PUBLIC_PATHS = ['/login', '/shoutout', '/unsubscribe', '/api/auth/login', '/api/export', '/api/digest', '/api/debug', '/api/preview', '/api/shoutout', '/api/unsubscribe'];
+const PUBLIC_PATHS = [
+  '/login',
+  '/shoutout',
+  '/unsubscribe',
+  '/api/auth/login',
+  '/api/export',
+  '/api/digest',
+  '/api/shoutout',
+  '/api/unsubscribe',
+];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
