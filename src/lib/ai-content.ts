@@ -297,7 +297,7 @@ export async function generateNewCustomerShoutout(input: NewCustomerShoutoutInpu
     ? input.jobDescription.trim()
     : 'their first estimate';
   
-  const fallback = `NEW CUSTOMER ALERT - ${salesRep} landed a first estimate from ${input.accountName} for ${jobDescription} at ${input.estimateValue}. Let’s give them extra Boone love as we bring this new client on board.`;
+  const fallback = `NEW CUSTOMER ALERT - ${salesRep} landed a first estimate from ${input.accountName} for ${jobDescription} at ${input.estimateValue}. Welcome aboard -- let's make a strong first impression.`;
   
   if (!apiKey) {
     console.log('[AI Content] No ANTHROPIC_API_KEY found, using fallback new customer shoutout');
@@ -313,7 +313,8 @@ Requirements:
 - Mention the sales rep: ${salesRep}
 - Mention the estimate value: ${input.estimateValue}
 - Mention the job/estimate description: ${jobDescription}
-Tone: professional, upbeat, action-oriented. Encourage the team to support landing the new client.
+Tone: professional and confident. End with a brief, varied closing -- mention what makes this customer interesting, note a specific next step, or simply welcome them.
+IMPORTANT: NEVER start a sentence with "Let's rally" or "Let's rally around". Vary your phrasing each time -- no repeated formulas.
 Return ONLY the message text, no quotes or labels.
     `.trim();
     
@@ -327,7 +328,7 @@ Return ONLY the message text, no quotes or labels.
           content: prompt,
         },
       ],
-      system: 'You write concise, professional shoutouts for a sales team email digest.',
+      system: 'You write concise, professional new-customer announcements for a sales team email digest. Vary your phrasing -- never repeat the same call-to-action formula.',
     });
     
     const textBlock = response.content.find(block => block.type === 'text');
@@ -491,33 +492,33 @@ export async function generateMotivationalSummary(metrics: DigestMetricsForAI): 
       ? `Start the message with: "${greetingWord} ${metrics.recipientFirstName}."`
       : '';
 
-    const prompt = `You are writing a brief motivational summary for BooneGraphics, a professional printing company serving the medical industry. This will appear at the top of a ${periodType}ly digest email to the team.
+    const prompt = `You are writing a concise performance briefing for BooneGraphics, a professional printing company serving the medical industry. This appears at the top of a ${periodType}ly sales digest email.
 
 ${contextInfo}
 
-Write a 2-3 sentence motivational team summary that:
-1. Acknowledges the team's collective effort (never call out individuals)
-2. Highlights something positive from the numbers
-3. Maintains a professional, encouraging tone appropriate for a B2B medical printing company
-4. Focuses on team success and shared wins
+Write a 2-3 sentence performance summary that:
+1. Leads with the most notable number or trend from the data
+2. Puts the results in context (pace toward goals, comparison to prior period, pipeline health)
+3. Keeps a professional, analytical tone -- like a morning briefing a VP would read, not a pep rally
+4. Never calls out individuals by name
 ${greetingInstruction ? `5. ${greetingInstruction}` : ''}
 
-IMPORTANT: Create a unique, creative headline. Do NOT start with "Strong" - use varied words like "Excellent", "Outstanding", "Crushing It", "On Fire", "Momentum Building", "Goals in Sight", "Another Win", "Delivering Excellence", "Making It Happen", etc.
+Use concise, factual headlines like "Revenue Uptick", "Pipeline Growing", "Pace Check", "Strong Close", "Midweek Snapshot". Avoid cheerleader headlines like "Crushing It" or "On Fire".
 
 Return your response in this exact JSON format:
-{"headline": "2-4 word headline (NOT starting with Strong)", "message": "Your 2-3 sentence motivational message here."}`;
+{"headline": "2-4 word factual headline", "message": "Your 2-3 sentence performance summary here."}`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
-      temperature: 1,
+      temperature: 0.7,
       messages: [
         {
           role: 'user',
           content: prompt,
         },
       ],
-      system: 'You generate professional, team-focused motivational content for a medical printing company. Always respond with valid JSON only. NEVER use the word "Strong" in headlines - be creative with different words.',
+      system: 'You write concise, analytical sales performance briefings for a medical printing company. Keep tone professional and factual. Always respond with valid JSON only.',
     });
 
     const textBlock = response.content.find(block => block.type === 'text');
@@ -746,7 +747,7 @@ export async function generateRichMotivationalSummary(ctx: RichAIContext): Promi
       ? `Start the message with: "${greetingWord} ${ctx.recipientFirstName}."`
       : '';
     
-    const prompt = `You are writing a brief motivational summary for BooneGraphics, a professional printing company serving the medical industry. This appears at the TOP of a ${periodType} sales digest email.
+    const prompt = `You are writing a concise daily performance briefing for BooneGraphics, a professional printing company serving the medical industry. This appears at the TOP of a ${periodType} sales digest email.
 
 ${contextSection}
 ${goalSection}
@@ -756,41 +757,41 @@ ${recentDigestsSection}
 
 ## YOUR TASK
 
-Write a 2-3 sentence motivational message that is SPECIFIC and INSIGHTFUL, not generic.
+Write a 2-3 sentence performance briefing that is SPECIFIC and DATA-DRIVEN. This is a professional report, not a pep rally.
 
 REQUIREMENTS:
-1. Lead with the MOST INTERESTING thing from the data above - a specific trend, a notable order, a milestone, or an insight worth acting on
-2. Reference SPECIFIC numbers, account names, or insights - make it clear this message is about TODAY, not a template
-3. If pace status is "AHEAD", celebrate the momentum with specifics
-4. If pace status is "BEHIND", acknowledge the gap but focus on the path forward (e.g., "Need $X/day for the next Y days")
+1. Lead with the MOST NOTABLE data point -- a specific trend, a standout order, a pace milestone, or an actionable insight
+2. Reference SPECIFIC numbers, account names, or insights so the reader knows this is about TODAY's data
+3. If pace status is "AHEAD", note the momentum with specifics (e.g., "Averaging $X/day vs the $Y/day needed")
+4. If pace status is "BEHIND", state the gap plainly and focus on the path forward (e.g., "Need $X/day over the next Y days to close the gap")
 5. If there's a notable insight (anniversary reorder, lapsed account, hot streak), mention ONE as an actionable opportunity
-6. Keep tone professional but energizing - this is for a B2B medical printing company
-7. NEVER use generic phrases like "great job team" or "keep up the good work" without specific context
+6. Keep tone professional and analytical -- like a morning briefing a VP would read, not a motivational speech. Confident but not cheerleading.
+7. NEVER use generic praise ("great job team", "keep up the good work", "let's keep pushing"). Every sentence must carry specific information.
 8. AVOID repeating recent headlines or over-mentioning accounts listed in the "AVOID REPETITION" section
 ${greetingInstruction ? `9. ${greetingInstruction}` : ''}
 
 GOOD EXAMPLE:
-"Memorial Hospital just placed their biggest order in 6 months - $3,500 for surgical kit labels. With 10 days left and $85K to go, yesterday's $16K keeps us right on pace. Quick opportunity: Smith Medical's annual report order is coming up - they placed a $4K order same time last year."
+"Revenue hit $16K yesterday, keeping the monthly pace at $18K/day against the $17K needed. Memorial Hospital's $3,500 surgical kit label order was the standout -- their largest in 6 months. Worth noting: Smith Medical placed a $4K annual report order this time last year and hasn't reordered yet."
 
 BAD EXAMPLE:
-"Excellent work yesterday! The team delivered solid results with strong revenue. Keep pushing forward and we'll hit our goals!"
+"What an incredible day! The team absolutely crushed it with amazing revenue numbers. Let's keep this momentum rolling and smash our goals!"
 
 Return your response in this exact JSON format:
-{"headline": "2-4 word headline that references something SPECIFIC (not generic)", "message": "Your 2-3 sentence message with specific numbers, names, or insights."}`;
+{"headline": "2-4 word factual headline referencing something SPECIFIC", "message": "Your 2-3 sentence briefing with specific numbers, names, or insights."}`;
 
     console.log('[AI Content] Sending rich context prompt to Anthropic...');
     
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 400,
-      temperature: 0.9,
+      temperature: 0.7,
       messages: [
         {
           role: 'user',
           content: prompt,
         },
       ],
-      system: 'You generate specific, data-driven motivational content for a sales team. You MUST reference specific numbers, accounts, or insights from the provided data. Generic praise is not acceptable. Always respond with valid JSON only.',
+      system: 'You write concise, analytical sales performance briefings. You MUST reference specific numbers, accounts, or insights from the provided data. Generic praise and cheerleading are not acceptable -- be professional and factual. Always respond with valid JSON only.',
     });
 
     const textBlock = response.content.find(block => block.type === 'text');

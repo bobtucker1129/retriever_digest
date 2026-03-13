@@ -40,7 +40,22 @@ type TestimonialWithStats = Testimonial & {
   lastShownAt?: Date | null;
 };
 
-async function fetchTestimonialsFromApi(limit = 2): Promise<Testimonial[]> {
+function parseLoyaltyLoopResponse(data: LoyaltyLoopResponse[]): Testimonial[] {
+  return data.map(item => ({
+    id: item.id,
+    survey_id: item.survey_id,
+    date: item.date,
+    text: item.text,
+    name: item.name,
+    display_date: item.display_date,
+    company: item.company,
+    city: item.city,
+    state: item.state,
+    score: typeof item.score === 'string' ? parseInt(item.score, 10) : item.score,
+  }));
+}
+
+async function fetchTestimonialsFromApi(): Promise<Testimonial[]> {
   const apiKey = process.env.LOYALTYLOOP_API_KEY;
   
   if (!apiKey) {
@@ -48,22 +63,18 @@ async function fetchTestimonialsFromApi(limit = 2): Promise<Testimonial[]> {
     return [];
   }
 
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  };
+
   try {
-    // Fetch more than we need to allow for prioritization
-    const fetchLimit = Math.max(limit * 3, 10);
-    const url = `${LOYALTYLOOP_API_URL}?limit=${fetchLimit}&rating=4,5`;
+    // Fetch the API maximum (100) to give rotation logic the largest possible pool
+    const url = `${LOYALTYLOOP_API_URL}?limit=100&rating=4,5`;
     
-    console.log(`[LoyaltyLoop] Fetching testimonials from API...`);
+    console.log('[LoyaltyLoop] Fetching testimonials from API (page 1)...');
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      // Don't cache - we want fresh testimonials each time
-      cache: 'no-store',
-    });
+    const response = await fetch(url, { method: 'GET', headers, cache: 'no-store' });
 
     if (!response.ok) {
       console.error(`[LoyaltyLoop] API error: ${response.status} ${response.statusText}`);
@@ -77,21 +88,27 @@ async function fetchTestimonialsFromApi(limit = 2): Promise<Testimonial[]> {
       return [];
     }
 
-    console.log(`[LoyaltyLoop] Received ${data.length} testimonials from API`);
+    let testimonials = parseLoyaltyLoopResponse(data);
 
-    // Convert to our Testimonial interface
-    const testimonials: Testimonial[] = data.map(item => ({
-      id: item.id,
-      survey_id: item.survey_id,
-      date: item.date,
-      text: item.text,
-      name: item.name,
-      display_date: item.display_date,
-      company: item.company,
-      city: item.city,
-      state: item.state,
-      score: typeof item.score === 'string' ? parseInt(item.score, 10) : item.score,
-    }));
+    // If the first page was full, fetch a second page for a deeper rotation pool
+    if (data.length === 100) {
+      try {
+        const lastId = data[data.length - 1].id;
+        const page2Url = `${LOYALTYLOOP_API_URL}?limit=100&rating=4,5&page_id=${lastId}&page_dir=BACKWARD`;
+        console.log('[LoyaltyLoop] First page full, fetching page 2...');
+        const page2Response = await fetch(page2Url, { method: 'GET', headers, cache: 'no-store' });
+        if (page2Response.ok) {
+          const page2Data: LoyaltyLoopResponse[] = await page2Response.json();
+          if (Array.isArray(page2Data) && page2Data.length > 0) {
+            testimonials = testimonials.concat(parseLoyaltyLoopResponse(page2Data));
+          }
+        }
+      } catch (page2Error) {
+        console.warn('[LoyaltyLoop] Page 2 fetch failed, continuing with page 1 results', page2Error);
+      }
+    }
+
+    console.log(`[LoyaltyLoop] Total testimonial pool: ${testimonials.length}`);
     return testimonials;
 
   } catch (error) {
@@ -114,7 +131,7 @@ function sortByLeastShown(a: TestimonialWithStats, b: TestimonialWithStats): num
 }
 
 export async function getRecentTestimonials(limit = 2): Promise<Testimonial[]> {
-  const testimonials = await fetchTestimonialsFromApi(limit);
+  const testimonials = await fetchTestimonialsFromApi();
   if (testimonials.length === 0) {
     return [];
   }
