@@ -1,8 +1,8 @@
 # Retriever Daily Digest - Project Context
 
-> **Last Updated:** 2026-02-18  
+> **Last Updated:** 2026-02-26  
 > **Current Phase:** Phase 4 In Progress  
-> **Status:** System live - security hardening + refactor + automated test loops added; birthday/unsubscribe rollout remains deployed
+> **Status:** System live - digest quality tuning deployed (testimonial pool expansion, professional AI tone, varied shoutout phrasing); prior security hardening + refactor + tests remain in place
 
 ---
 
@@ -295,6 +295,34 @@ The same export script handles all scenarios - differences are in timing and how
 ---
 
 ## Session History
+
+### 2026-02-26 (Session 28): Digest Quality Tuning - Testimonials, AI Tone, Shoutout Phrasing
+- **Committed Prior Session Work**
+  - Session 27 changes (security hardening, shared refactor, tests, docs) were uncommitted; split into 4 focused commits and pushed
+  - Commits: `eb68e0c` (security), `7b64181` (refactor), `598aac8` (tests), `08c1ea1` (docs + birthday CSV)
+- **LoyaltyLoop Testimonial Pool Expansion**
+  - Root cause: API fetch limited to 10 testimonials (`Math.max(limit*3, 10)`)
+  - Increased fetch limit to 100 (API max) and added second-page pagination for up to 200 total
+  - Existing de-dup/rotation logic (new-unshown > older-unshown > least-shown) unchanged -- just gets a much larger input pool
+  - Added `parseLoyaltyLoopResponse` helper to avoid duplicating mapping logic across pages
+- **AI Summary Tone: Pep-Rally to Performance Briefing**
+  - Reframed both `generateMotivationalSummary` and `generateRichMotivationalSummary` prompts
+  - Changed from "motivational summary" framing to "concise daily performance briefing"
+  - Updated system prompts from "motivational content" to "analytical sales performance briefings"
+  - Replaced cheerleader headline suggestions ("Crushing It", "On Fire") with professional ones ("Revenue Uptick", "Pace Check")
+  - Updated good/bad examples to contrast analyst observation vs cheerleading
+  - Lowered temperature from 0.9/1.0 to 0.7 to reduce over-the-top flourishes
+- **New Customer Shoutout Phrasing Variety**
+  - Removed "Encourage the team to support landing the new client" instruction (caused repetitive "Let's rally around...")
+  - Added explicit ban on "Let's rally" phrasing and instructions to vary closings
+  - Updated system prompt to reinforce phrasing variety
+  - Updated fallback text from "Boone love" to professional "Welcome aboard -- let's make a strong first impression."
+- **Commits & Deployments**
+  - `b56f6d2` Improve digest quality: expand testimonial pool, professionalize AI tone, vary shoutout phrasing
+  - Pushed to `main`; Render auto-deploy triggered
+- **Files Modified:**
+  - `src/lib/loyaltyloop.ts` - Fetch limit increase + pagination
+  - `src/lib/ai-content.ts` - Prompt tone, temperature, shoutout phrasing
 
 ### 2026-02-18 (Session 27): Security Hardening + Shared Refactor + Automated Tests
 - **Security Hardening**
@@ -825,19 +853,17 @@ The same export script handles all scenarios - differences are in timing and how
 
 ### Immediate Priorities
 
-1. **Deploy and Validate Security Hardening in Production**
-   - Deploy latest changes and verify admin preview/testing routes require authenticated session
-   - Confirm unsubscribe links in real emails resolve via tokenized flow and still complete opt-out UX
+1. **Verify Digest Quality Changes in Production**
+   - Check tomorrow's daily digest for professional AI tone (not pep-rally)
+   - Confirm testimonial section shows fresh/varied customer feedback
+   - Verify new customer shoutouts no longer repeat "Let's rally around..."
+   - If AI tone swings too far toward dry, adjust temperature or prompt wording
 
-2. **Monitor First Friday Weekend-Birthday Digest**
-   - Confirm Friday digest includes upcoming weekend birthdays (Fri+Sat+Sun behavior)
-   - Validate message quality and no age mention in production output
+2. **Verify Security Hardening in Production**
+   - Confirm admin preview/testing routes require authenticated session
+   - Confirm unsubscribe links in real emails resolve via tokenized flow
 
-3. **Run a Real-World Inbox Verification Pass**
-   - Spot-check Gmail/Outlook rendering for daily and weekly templates after refactor
-   - Confirm unsubscribe footer placement and links across clients
-
-4. **Deploy Updated Export Script to PrintSmith Server (if not yet synced)**
+3. **Deploy Updated Export Script to PrintSmith Server (if not yet synced)**
    - Ensure the latest repo `printsmith_export.py` is copied to `C:\Retriever\export\`
    - Keep scheduled exports aligned with repo fixes
 
@@ -850,6 +876,11 @@ The same export script handles all scenarios - differences are in timing and how
 - ✅ Source tracking distinguishes manual vs scheduled exports
 - ✅ Cursor commands provide easy access to export tools
 - ✅ Monday weekend aggregation verified (Feb 10)
+- ✅ Security hardening deployed (session guards, rate limits, signed unsubscribe tokens)
+- ✅ Shared digest refactor + Vitest test suite added
+- ✅ Testimonial pool expanded from 10 to up to 200
+- ✅ AI tone shifted from pep-rally to professional briefing
+- ✅ Shoutout phrasing variety enforced
 
 ### Optional Future Enhancements
 - Add Estimates column to BD Performance table (matching PM table)
